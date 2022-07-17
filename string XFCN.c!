@@ -1,0 +1,13 @@
+function string resID
+  if resID = "?" then
+    return "put|get string(<resID>)"
+  else if resID = "!" then
+    return "string 1.0, © 1996 by Uli Kusterer, all rights reserved."
+  end if
+  put getResource("STR ",resID) into theStr
+  if theStr = NIL then
+    return "Error: Couldn't get string."
+  end if
+  put theStr@@.str255Type into myString
+  return myString
+end string

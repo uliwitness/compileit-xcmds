@@ -1,0 +1,22 @@
+function clipToPict rNam
+  if rNam = "?" then
+    return "put|get clipToPict(<resName>)"
+  else if rNam = "!" then
+    return "clipToPict 1.0, © 1996 by Uli Kusterer, all rights reserved."
+  end if
+  put newHandle(0) into myGraph
+  put getScrap(myGraph,"PICT",theOffs) into theLen
+  if theLen = -102 then return "Error: Clipboard is no picture."
+  if theLen < 0 then return "Error: Couldn't get picture."
+  put get1NamedResource("PICT",rNam) into myRes
+  if myRes ≠ NIL then
+    rmveResource myRes
+  end if
+  put uniqueID("PICT") into theID
+  AddResource myGraph,"PICT",theID,rNam
+  if resError() ≠ 0 then
+    return "Error: Unknown #" & resError()
+  end if
+  writeResource myGraph
+  return theID
+end clipToPict

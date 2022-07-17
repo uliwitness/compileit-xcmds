@@ -1,0 +1,83 @@
+on setWinPic winName,mode,myPath
+  if winPtr = "?" then
+    return "setWinPic <windowName>,<F[ile] | R[esource] | N[one]>,<path | name | resID>"
+  else if winPtr = "!" then
+    return "SetWinPic 1.1, © 1995 by Martin Kusterer, all rights reserved."
+  end if
+  put nameToPtr(winName) into winPtr
+  if winPtr = NIL then return "Error: Window not found."
+  if mode = "File" or mode = "F" then
+    put openFile(myPath) into myPic
+    if myPic = nil then return "Error: Couldn't open file."
+    Do_SetPicStuff winPtr,myPic
+  else if mode = "Resource" or mode = "R" then
+    if noInteger(myPath) then
+      put getNamedResource("PICT",myPath) into myPic
+    else
+      put getResource("PICT",myPath) into myPic
+    end if
+    if myPic = nil then return "Error: Couldn't find resource."
+    DetachResource myPic
+    Do_SetPicStuff winPtr,myPic
+  else if mode = "None" or mode = "N" then
+    put nil into myPic
+    Do_SetPicStuff winPtr,myPic
+  end if
+end setWinPic
+
+function openFile myPath
+  put FSOpen(myPath,0,myRefNum) into err
+  if err = noErr then
+    put GetEOF(myRefNum,dataLength) into err
+    if err = noErr then
+      put SetFPos(myRefNum, fsFromStart,512) into err -- move past the 512-Byte header
+      subtract 512 from dataLength
+      put NewHandle(dataLength) into myPic
+      if err = noErr and myPic ≠ nil then
+        HLock myPic
+        put FSRead(myRefNum, dataLength,myPic@.ptrType) into err
+        HUnlock myPic
+        put FSClose(myRefNum) into err
+        if myPic ≠ nil then
+          return myPic
+        else
+          return nil
+        end if
+      else
+        return nil
+      end if
+    else
+      put FSClose(myRefNum) into err
+      return nil
+    end if
+  else
+    return nil
+  end if
+end openfile
+
+function nameToPtr wdName
+  put frontWindow() into winPtr
+  repeat until winPtr = NIL
+    getWTitle winPtr,theStr
+    if theStr = wdName then return winPtr
+    put winPtr@.nextWindow into winPtr
+  end repeat
+  return NIL
+end nameToPtr
+
+on Do_SetPicStuff winPtr,myPic
+  setPort winPtr
+  if getWindowPic(winPtr) ≠ empty then
+    setWindowPic winPtr,nil
+  end if
+  if myPic ≠ nil then setWindowPic winPtr,myPic -- set windowPic field
+  eraseRect winPtr@.portRect -- remove old contents
+  InvalRect winPtr@.portRect -- force an update so it will draw
+end Do_SetPicStuff
+
+function noInteger nb
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then return TRUE
+  end repeat
+  return FALSE
+end noInteger

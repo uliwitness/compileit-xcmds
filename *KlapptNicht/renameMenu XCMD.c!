@@ -1,0 +1,24 @@
+on renameMenu resNum,newName
+  put resNum+0 into resID
+  put getMenu(resID) into myMenu
+  GetResInfo myMenu,resID,itstype,resName
+  put newMenu(myMenu@@.menuID,newName) into yourMenu
+  put countMItems(myMenu) into itmCnt
+  repeat with x = 1 to itmCnt
+    insMenuItem yourMenu,"x",1
+  end repeat
+  repeat with x = 1 to itmCnt
+    getItem myMenu,x,theStr
+    setItem yourMenu,x,theStr
+    getItemMark myMenu,x,theChar
+    setItemMark yourMenu,x,theChar
+    getItemCmd myMenu,x,theTx
+    setItemCmd yourMenu,x,theTx
+    getItemIcon myMenu,x,theByte
+    setItemIcon yourMenu,x,theByte
+    getItemStyle myMenu,x,theStyl
+    setItemStyle yourMenu,x,theStyl
+  end repeat
+  rmveResource myMenu
+  addResource yourMenu,"MENU",resID,resName
+end renameMenu

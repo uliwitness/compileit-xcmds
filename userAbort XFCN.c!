@@ -1,0 +1,4 @@
+function userAbort
+  if the suspended = TRUE then return FALSE
+  return (commandPeriod() = TRUE)
+end userAbort

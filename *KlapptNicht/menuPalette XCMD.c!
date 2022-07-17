@@ -1,0 +1,137 @@
+on menuPalette
+  put newptr(8) into windRect
+  setRect windRect@,100,100,200,400
+  localToGlobal windRect@.longIntType[1]
+  localToGlobal windRect@.longIntType[2]
+  put newXWindow(windRect@,"Menus",FALSE,2052,FALSE,TRUE) into winPtr
+  if winPtr = NIL then
+    return "Error: Couldn't create window."
+  end if
+  disposPtr windRect
+  setPort winPtr
+  textFont 0
+  textSize 12
+  textFace 0
+  put NIL into winPtr@.refCon
+  showWindow winPtr
+end menuPalette
+
+on openEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  XWAllowReEntrancy winPtr,TRUE,TRUE
+end openEvent
+
+function closeEvent eventInfoPtr
+  return TRUE
+end closeEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if winPtr@.refCon = NIL then
+    makeGraphics winPtr
+  end if
+  beginUpdate winPtr
+  eraseRect winPtr@.portRect
+  drawPicture winPtr@.refCon,winPtr@.portRect
+  endUpdate winPtr
+end updateEvent
+
+on SendEvent eventInfoPtr
+  put eventInfoPtr@.eventParams.ptrType@.str255type into evtName
+  put eventInfoPtr@.eventWindow into winPtr
+  if evtName = "Update" then
+    updateContents winPtr
+  end if
+end SendEvent
+
+on updateContents winPtr
+  killPicture winPtr@.refCon
+  put NIL into winPtr@.refCon
+  makeGraphics winPtr
+  invalRect winPtr@.portRect
+end updateContents
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if frontWindow() ≠ winPtr then
+    selectWindow winPtr
+  end if
+  put FindWindow(eventInfoPtr@.event.where,winPtr) into temp
+  if temp is inContent then
+    put eventInfoPtr@.event.where into clickPos
+    globalToLocal clickPos
+    handleClick winPtr,clickPos
+  else if temp is inDrag then
+    put newPtr(8) into moveRect
+    setRect moveRect@,-16000,-16000,16000,16000
+    DragWindow winPtr,eventInfoPtr@.event.where,moveRect@
+    disposPtr moveRect
+  else if temp is inGoAway then
+    if trackGoAway(winPtr,eventInfoPtr@.event.where)
+    then CloseXWindow winPtr
+  end if
+end mouseDownEvent
+
+on handleClick winPtr,clickPos
+  put newPtr(8) into menuRect
+  put getMenuBar() into currMenus
+  HLock currMenus
+  put currMenus@ into mPtr
+  put currMenus@@.integerType[1] + mPtr into theLastMenu
+  add 6 to mPtr
+  repeat until mPtr > theLastMenu
+    add 1 to menuCount
+    put mPtr@.handleType[1] into myMenu
+    setRect menuRect@,winPtr@.portRect.left,(menuCount-1)*18,¬
+    winPtr@.portRect.right,menuCount*18
+    if ptInRect(clickPos,menuRect@) then
+      invertRect menuRect@
+      invalRect menuRect@
+      exit repeat
+    end if
+    add 6 to mPtr
+  end repeat
+  HUnlock currMenus
+  disposHandle currMenus
+  if theErr ≠ 0 then
+    disposPtr menuRect
+    exit handleClick
+  end if
+  insertMenu myMenu,-1
+  localToGlobal menuRect@.longIntType
+  localToGlobal menuRect@.longIntType[2]
+  put popupMenuSelect(myMenu,menuRect@.top +2,menuRect@.right,1) into choice
+  deleteMenu myMenu
+  disposPtr menuRect
+  getItem myMenu,loWord(choice),theStr
+  sendHcMessage "domenu" && quote & theStr & quote
+end handleClick
+
+on makeGraphics winPtr
+  put getMenuBar() into currMenus
+  HLock currMenus
+  put currMenus@ into mPtr
+  put currMenus@@.integerType[1] + mPtr into theLastMenu
+  add 6 to mPtr
+  repeat until mPtr > theLastMenu
+    add 1 to menuCount
+    put mPtr@.handleType[1] into myMenu
+    put myMenu@@.menuData & numtoChar(255) after theNames
+    put stringWidth(myMenu@@.menuData) into theWd
+    if theWd > biggestWd then put theWd into biggestWd
+    add 6 to mPtr
+  end repeat
+  HUnlock currMenus
+  disposHandle currMenus
+  delete last char of theNames
+  sizeWindow winPtr,biggestWd+20,menuCount*18,TRUE
+  set the itemDelim to numtoChar(255)
+  put openPicture(winPtr@.portRect) into winPtr@.refCon
+  repeat with x = 1 to menuCount
+    moveTo 10,(18*x)-4
+    drawString (item x of theNames)
+    moveTo 0,(18*x)
+    lineTo winPtr@.portRect.right,(18*x)
+  end repeat
+  closePicture
+end makeGraphics

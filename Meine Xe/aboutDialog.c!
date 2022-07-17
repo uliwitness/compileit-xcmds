@@ -1,0 +1,80 @@
+global itemHit:integer
+global aRect:rect
+global theV:integer
+global theH:integer
+
+on aboutDialog dlogId,text,schrif,stil,gross,farb
+  if dlogId = "?" then return help()
+  if dlogId = "!" then return copyright()
+  if dlogId is not an integer then return "Error: The dialog ID must be an integer."
+  put getNewDialog(dlogId, nil, pointer(-1)) into theDialog
+  if theDialog ≠ nil then
+    SetPort theDialog
+    if farb = "white" then
+      ForeColor whiteColor
+    else if farb = "black" then
+      ForeColor blackColor
+    else if farb = "yellow" then
+      ForeColor yellowColor
+    else if farb = "magenta" then
+      ForeColor magentaColor
+    else if farb = "red" then
+      ForeColor redColor
+    else if farb = "cyan" then
+      ForeColor cyanColor
+    else if farb = "green" then
+      ForeColor greenColor
+    else if farb = "blue" then
+      ForeColor blueColor
+    end if
+    GetFNum schrif,fNum
+    textFont fNum
+    textSize gross
+    put 0 into fFace
+    if "bold" is in stil then
+      add 1 to fFace
+    end if
+    if "italic" is in stil then
+      add 2 to fFace
+    end if
+    if "underline" is in stil then
+      add 4 to fFace
+    end if
+    if "outline" is in stil then
+      add 8 to fFace
+    end if
+    if "shadow" is in stil then
+      add 16 to fFace
+    end if
+    if "condense" is in stil then
+      add 32 to fFace
+    end if
+    if "extend" is in stil then
+      add 64 to fFace
+    end if
+    textFace fFace
+    GetDItem theDialog,2,itemType,itemHandle,aRect
+    DrawDialog theDialog
+    put aRect.integerType[2] into theV
+    add 5 to theV
+    put aRect.integerType[1] into theH
+    ClipRect aRect
+    repeat with x = 1 to (number of lines of Text)
+      add 13 to theH
+      MoveTo theV,theH
+      DrawString (line x of text)
+    end repeat
+    wait until the mouse is down
+    DisposDialog theDialog
+  else
+    return "Error: Couldn't open dialog."
+  end if
+end aboutDialog
+
+function help
+  return "aboutDialog <res ID>,<text>,<font>,<styles>,<size>,<color>"
+end help
+
+function copyright
+  return "1.0 © Copyright 1995 by Martin Kusterer, all rights reserved."
+end copyright

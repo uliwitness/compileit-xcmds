@@ -1,0 +1,895 @@
+GLOBAL kind:T, arect:R, aPenState:R[18], minMaxSize:R
+GLOBAL newSize:longInt, newWidth:integer, newHeight:integer
+
+Constant kSideBarWidth = 36
+Constant kTopBarHeight = 40
+Constant kIconHeight   = 32
+Constant kIconDistance = 5
+Constant kMaxListWidth = 250
+Constant kWindowFontID = 1600
+Constant kMyInfoWidth  = 48
+Constant kLineHeight   = 12
+
+on resWindow fName
+  if fName = "?" then
+    return "resWindow"
+  else if fName = "!" then
+    return "resWindow 1.0, © 1995-96 by Uli Kusterer, all rights reserved."
+  end if
+  if value("there is a window ResMagic") then selectWindow value("the id of 
+window resMagic")
+  setRect arect,90,90,278,293
+  put newXWindow(arect,"ResMagic",TRUE,8,TRUE,FALSE) into winPtr
+  if winPtr = NIL then return "Error: couldn't create window."
+  put newHandle(64) into myData
+  if myData = NIL then
+    setWRefCon winPtr,NIL
+    closeXWindow winPtr
+    return "Error: couldn't create privates."
+  end if
+  put 1 into myData@@.integerType[1] -- selectedButton
+  put 0 into myData@@.integerType[2] -- lineCount
+  put kTopBarHeight+4 into stTop
+  SetRect arect,2,stTop,34,stTop+kIconHeight
+  put arect.longIntType[1] into myData@@.longIntType[2] -- rec1, topLeft
+  put arect.longIntType[2] into myData@@.longIntType[3] -- rec1, botRight
+  add kIconHeight+kIconDistance to stTop
+  SetRect arect,2,stTop,34,stTop+kIconHeight
+  put arect.longIntType[1] into myData@@.longIntType[4] -- rec2, topLeft
+  put arect.longIntType[2] into myData@@.longIntType[5] -- rec2, botRight
+  add kIconHeight+kIconDistance to stTop
+  SetRect arect,2,stTop,34,stTop+kIconHeight
+  put arect.longIntType[1] into myData@@.longIntType[6] -- rec3, topLeft
+  put arect.longIntType[2] into myData@@.longIntType[7] -- rec3, botRight
+  add kIconHeight+kIconDistance to stTop
+  SetRect arect,2,stTop,34,stTop+kIconHeight
+  put arect.longIntType[1] into myData@@.longIntType[8] -- rec4, topLeft
+  put arect.longIntType[2] into myData@@.longIntType[9] -- rec4, botRight
+  setWRefCon winPtr,myData
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.right -15 into arect.left
+  subtract 14 from arect.bottom
+  add kTopBarHeight to arect.top
+  add 1 to arect.right
+  put newControl(winPtr, arect, "", TRUE, 0, 0, 0, 16, 0) into theControl
+  put theControl into myData@@.longIntType[10] -- scrollbar handle
+  put NIL into myData@@.longIntType[11] -- content pict handle
+  put 0 into myData@@.integerType[23] -- selectedLine
+  put 0 into myData@@.integerType[24] -- flags
+  put NIL into myData@@.longIntType[13] -- content text handle
+  put CurResFile() into myData@@.integerType[27] -- No. of current resFile
+  -- 28 currently unused
+  add kIconHeight+kIconDistance to stTop
+  SetRect arect,2,stTop,34,stTop+kIconHeight
+  put arect.longIntType[1] into myData@@.longIntType[15] -- rec5, topLeft
+  put arect.longIntType[2] into myData@@.longIntType[16] -- rec5, botRight
+end resWindow
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  SetXWIdleTime winPtr,60
+  XWAllowReEntrancy winPtr, true, true
+  setPort winPtr
+  textFont kWindowFontID
+  textSize 9
+  beginEdit_Evt winPtr
+end OpenEvent
+
+on idleEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  put CurResFile() into theNum
+  if myData@@.integerType[27] ≠ theNum then -- stack has changed
+    updateContents winPtr, myData
+    put theNum into myData@@.integerType[27]
+  end if
+end idleEvent
+
+function closeEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if myData ≠ NIL then
+    disposHandle myData
+  end if
+  runHandler "RW_CloseAll"
+  return true
+end closeEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put eventInfoPtr@.eventWindow into winPtr
+  put propNamePtr@.str255type into theProp
+  put getWRefCon(winPtr) into myData
+  if theProp = "name" then
+    setWTitle winPtr,theValue
+  else if theProp = "hilitedButton" then
+    put theValue+0 into myData@@.integerType[1]
+    invalRect winPtr@.portRect
+  else if theProp = "hilitedLine" then
+    put theValue+0 into myData@@.integerType[23]
+    invalRect winPtr@.portRect
+  else return true
+  return false
+end SetPropEvent
+
+function GetPropEvent eventInfoPtr,propNamePtr
+  put propNamePtr@.str255type into theProp
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if theProp = "hilitedButton" then
+    put myData@@.integerType[1] into theNum
+    return theNum
+  else if theProp = "hilitedLine" then
+    put myData@@.integerType[23] into theNum
+    return theNum
+  else if theProp = "hilitedText" then
+    put HyperCardText(myData@@.longIntType[13]) into myText
+    HyperCardOwns myText
+    if myData@@.integerType[23] = 0 then return empty
+    put line (myData@@.integerType[23]) of myText into theText
+    return theText
+  else if theProp = "text" then
+    put HyperCardText(myData@@.longIntType[13]) into myText
+    HyperCardOwns myText
+    put myText into theText
+    return theText
+  else
+    exit GetPropEvent
+  end if
+end GetPropEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.event.where into mousePos
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if frontDocWindow() ≠ winPtr and¬
+  bitAnd(eventInfoPtr@.event.modifiers, cmdKey) = 0 then
+    selectWindow winPtr
+  end if
+  get FindWindow(mousePos,winPtr)
+  if it is inContent then
+    clickInWindow winPtr,mousePos
+  else if it is inDrag then
+    setRect arect,-16000,-16000,16000,16000
+    DragWindow winPtr,mousePos,arect
+  else if it is inGoAway then
+    if trackGoAway(winPtr,mousePos) then
+      CloseXWindow winPtr
+    end if
+  else if it is inGrow then
+    changeWinSize winPtr,mousePos
+  else if it is inZoomIn or it is inZoomOut then
+    if trackBox(winPtr,mousePos, it) then
+      zoomWindow winPtr,it,TRUE
+      adjust_Scrollbar winPtr
+    end if
+  end if
+end mouseDownEvent
+
+on beginEdit_Evt winPtr
+  put getWRefCon(winPtr) into myData
+  if bitAnd(myData@@.integerType[24],1) = 0
+  then add 1 to myData@@.integerType[24]
+  beginXWedit winPtr
+end beginEdit_Evt
+
+on changeWinSize winPtr,mousePos
+  put getWRefCon(winPtr) into myData
+  put 203 into minMaxSize.top
+  put 188 into minMaxSize.left
+  put 32000 into minMaxSize.bottom
+  put 32000 into minMaxSize.right
+  put growWindow(winPtr,mousePos,minMaxSize) into newSize
+  if newSize ≠ nil then
+    put LoWord(newSize) into newWidth
+    put HiWord(newSize) into newHeight
+    SizeWindow winPtr, newWidth, newHeight, FALSE
+    adjust_Scrollbar winPtr
+    invalRect winPtr@.portRect
+  end if
+end changeWinSize
+
+on adjust_Scrollbar winPtr
+  put getWRefCon(winPtr) into myData
+  put myData@@.longIntType[10] into theControl
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.right -15 into arect.left
+  subtract 14 from arect.bottom
+  add 1 to arect.right
+  add kTopBarHeight to arect.top
+  hideControl theControl
+  moveControl theControl,arect.left,arect.top
+  sizeControl theControl,arect.right - arect.left,arect.bottom - arect.top
+  put myData@@.longIntType[11] into myPic
+  put myPic@@.integerType[4] - myPic@@.integerType[2] into txHeight
+  subtract winPtr@.portRect.bottom - winPtr@.portRect.top from txHeight
+  add (kTopBarHeight +15) to txHeight -- top & bottom bars
+  if txHeight < 0 then put 0 into txHeight
+  setCtlMax theControl,txHeight
+  showControl theControl
+end adjust_Scrollbar
+
+on clickInWindow winPtr,myPos
+  put getWRefCon(winPtr) into myData
+  beginEdit_Evt winPtr
+  globalToLocal myPos
+  setRect aRect,4,4,36,36
+  if ptInRect(myPos,arect) then -- is in icon
+    doNewStuff winPtr
+  else
+    put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+    put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+    subtract 15 from arect.bottom
+    put arect.left +kSideBarWidth into arect.right
+    if ptInRect(myPos,arect) then -- is in side bar
+      put myData@@.longIntType[2] into arect.longIntType[1]
+      put myData@@.longIntType[3] into arect.longIntType[2]
+      if ptInRect(myPos,arect) then
+        updateContents winPtr, myData
+        put 1 into myData@@.integerType[1]
+      else
+        put myData@@.longIntType[4] into arect.longIntType[1]
+        put myData@@.longIntType[5] into arect.longIntType[2]
+        if ptInRect(myPos,arect) then
+          updateContents winPtr, myData
+          put 2 into myData@@.integerType[1]
+        else
+          put myData@@.longIntType[6] into arect.longIntType[1]
+          put myData@@.longIntType[7] into arect.longIntType[2]
+          if ptInRect(myPos,arect) then
+            updateContents winPtr, myData
+            put 3 into myData@@.integerType[1]
+          else
+            put myData@@.longIntType[8] into arect.longIntType[1]
+            put myData@@.longIntType[9] into arect.longIntType[2]
+            if ptInRect(myPos,arect) then
+              updateContents winPtr,myData
+              put 4 into myData@@.integerType[1]
+            else
+              put myData@@.longIntType[15] into arect.longIntType[1]
+              put myData@@.longIntType[16] into arect.longIntType[2]
+              if ptInRect(myPos,arect) then
+                updateContents winPtr,myData
+                put 5 into myData@@.integerType[1]
+              end if
+            end if
+          end if
+        end if
+      end if
+    else
+      put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+      put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+      add kTopBarHeight to arect.top
+      subtract 15 from arect.bottom
+      put arect.right -15 into arect.left
+      if ptInRect(myPos,arect) then
+        doScrollbarClick winPtr,myPos
+      else
+        put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+        put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+        add kSideBarWidth to arect.left
+        subtract 15 from arect.right
+        add kTopBarHeight to arect.top
+        subtract 15 from arect.bottom
+        if ptInRect(myPos,arect) then
+          doListClick winPtr,myPos
+        else
+          put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+          put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+          subtract 15 from arect.right
+          put arect.bottom -15 into arect.top
+          if ptInRect(myPos,arect) then
+            doBottomBarClick winPtr,myPos
+          end if
+        end if
+      end if
+    end if
+  end if
+end clickInWindow
+
+on doNewStuff winPtr
+  put winptr@.refCon into myData
+  put HyperCardText(myData@@.longIntType[13]) into myText
+  HyperCardOwns myText -- prevent disposal
+  put value("RW_NewResource()") into temp
+  if temp = "TRUE" then
+    updateContents winPtr, myData
+  end if
+end doNewStuff
+
+on updateContents winPtr,myData
+  killPicture myData@@.longIntType[11]
+  put NIL into myData@@.longIntType[11]
+  invalRect winPtr@.portRect
+end updateContents
+
+-- keep myScrollAction before doContentsClick, so compileIt! sees it.
+
+pascal on myScrollAction theControl:LongInt,thePart:Integer
+  put 0 into amount
+  put theControl@@.contrlOwner into winPtr
+  put getCRefCon(theControl) into lastTime
+  put getWRefCon(winPtr) into myData
+  if bitAnd(myData@@.integerType[24],2) ≠ 0 then
+    subtract 2 from myData@@.integerType[24]
+  end if
+  if tickCount() > lastTime then
+    if thePart = inPageUp then
+      subtract winPtr@.portRect.bottom -(kTopBarHeight +15) from amount
+    else if thePart = inPageDown then
+      add winPtr@.portRect.bottom -(kTopBarHeight+15) to amount
+    else if thePart = inUpButton then
+      subtract kLineHeight from amount
+    else if thePart = inDownButton then
+      add kLineHeight to amount
+    end if
+    put getCtlValue(theControl) into theValue
+    setCtlValue theControl,theValue +amount
+    setCRefCon theControl,tickCount()+keyRepThresh
+    if getCtlValue(theControl) ≠ theValue then
+      drawGraph TRUE,winPtr,myData
+    end if
+  end if
+end myScrollAction
+
+on doScrollbarClick winPtr,myPos
+  put findControl(myPos, winPtr, theControl) into thePart
+  put getWRefCon(winPtr) into myData
+  if thePart = inThumb then
+    put getCtlValue(theControl) into oldValue
+    put trackControl(theControl, myPos, NIL) into temp
+    put getCtlValue(theControl) into newValue
+    if oldValue ≠ newValue then
+      invalRect winPtr@.portRect
+    end if
+  else if thePart ≠ 0 then
+    put @myScrollAction into actionProc
+    put TrackControl(theControl, myPos, actionProc) into temp
+  end if
+end doScrollbarClick
+
+on doListClick winPtr,myPos
+  put getWRefCon(winPtr) into myData
+  put myData@@.longIntType[10] into theControl
+  put getCRefCon(theControl)+DoubleTime into lastTime
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  add kTopBarHeight+1 to arect.top
+  add kSideBarWidth to arect.left
+  subtract 15 from arect.right
+  if ptInRect(myPos,arect) then
+    if tickCount() > lastTime or bitAnd(myData@@.integerType[24],2) = 0 then
+      put hiWord(myPos) into vPos
+      add getCtlValue(theControl) to vPos
+      subtract kTopBarHeight from vPos
+      put vPos div 12 into theLine
+      add 1 to theLine
+      if theLine ≠ myData@@.integerType[23] and theLine ≤ 
+myData@@.integerType[2] then
+        put theLine into myData@@.integerType[23]
+        drawGraph TRUE,winPtr,myData
+      else if theLine > myData@@.integerType[2] then
+        put myData@@.integerType[2] into myData@@.integerType[23]
+        invalRect arect
+      else
+        put 0 into myData@@.integerType[23]
+      end if
+      setCRefCon theControl,tickCount()
+    else if bitAnd(myData@@.integerType[24],2) ≠ 0 then -- is double click
+      put HyperCardText(myData@@.longIntType[13]) into myText
+      HyperCardOwns myText -- prevent disposal
+      put value("RW_EditResource(" & quote & (line¬
+      (myData@@.integerType[23]) of myText) & quote & ")") into temp
+      if temp = "TRUE" then
+        updateContents winPtr, myData
+      end if
+    end if
+    if bitAnd(myData@@.integerType[24],2) = 0 then
+      add 2 to myData@@.integerType[24]
+    end if
+  end if
+end doListClick
+
+on doBottomBarClick winPtr,myPos
+  put winPtr@.refCon into myData
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.bottom -15 into arect.top
+  subtract 1 from arect.left
+  put arect.left +kMyInfoWidth into arect.right
+  add 1 to arect.bottom
+  if ptInRect(myPos,arect) then
+    put TRUE into isInside
+    drawIcon 603
+    repeat while stillDown()
+      getMouse myPos
+      if PtInRect(myPos,arect) then
+        if isInside = FALSE then
+          drawIcon 603
+          put TRUE into isInside
+        end if
+      else if isInside = TRUE then
+        drawIcon 602
+        put FALSE into isInside
+      end if
+    end repeat
+    drawIcon 602
+    if isInside then
+      put HyperCardText(myData@@.longIntType[13]) into myText
+      HyperCardOwns myText -- prevent disposal
+      runHandler ("RW_GetInfo" && quote & (line (myData@@.integerType[23])¬
+      of myText) & quote)
+      if the result = 1 or the result = 2 then
+        put "Sorry, the editor for this kind of resources" &&¬
+        "doesn't provide an Info box." into myString
+        put return&return& "You can't get information about this" &&¬
+        "resource." after myString
+        put showHcAlert(errorDlgId,myString) into temp
+      end if
+    end if
+  end if
+end doBottomBarClick
+
+function CursorWithinEvent eventInfoPtr
+  if FindWindow(eventInfoPtr@.event.where,eventInfoPtr@.eventWindow) is 
+inContent then
+    setCursor arrow
+    return false
+  end if
+  return true -- let HyperCard handle it
+end CursorWithinEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  beginUpdate winPtr
+  clipRect winPtr@.portRect
+  eraseRect winPtr@.portRect
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  add kTopBarHeight to arect.top
+  clipRect arect
+  drawGrowIcon winPtr
+  subtract 15 from aRect.bottom
+  put arect.left + kSideBarWidth into arect.right
+  clipRect arect
+  -- MENU VIEW
+  put myData@@.longIntType[2] into arect.longIntType[1]
+  put myData@@.longIntType[3] into arect.longIntType[2]
+  drawIcon 200
+  if myData@@.integerType[1] = 1 then
+    selectRect
+  end if
+  moveTo 0,(arect.bottom +1)
+  lineTo kSideBarWidth,(arect.bottom +1)
+  -- WINDOW VIEW
+  put myData@@.longIntType[4] into arect.longIntType[1]
+  put myData@@.longIntType[5] into arect.longIntType[2]
+  drawIcon 201
+  if myData@@.integerType[1] = 2 then
+    selectRect
+  end if
+  moveTo 0,(arect.bottom +1)
+  lineTo kSideBarWidth,(arect.bottom +1)
+  -- ICON VIEW
+  put myData@@.longIntType[6] into arect.longIntType[1]
+  put myData@@.longIntType[7] into arect.longIntType[2]
+  drawIcon 202
+  if myData@@.integerType[1] = 3 then
+    selectRect
+  end if
+  moveTo 0,(arect.bottom +1)
+  lineTo kSideBarWidth,(arect.bottom +1)
+  -- XCMD VIEW
+  put myData@@.longIntType[8] into arect.longIntType[1]
+  put myData@@.longIntType[9] into arect.longIntType[2]
+  drawIcon 203
+  if myData@@.integerType[1] = 4 then
+    selectRect
+  end if
+  moveTo 0,(arect.bottom +1)
+  lineTo kSideBarWidth,(arect.bottom +1)
+  -- REST VIEW
+  put myData@@.longIntType[15] into arect.longIntType[1]
+  put myData@@.longIntType[16] into arect.longIntType[2]
+  drawIcon 204
+  if myData@@.integerType[1] = 5 then
+    selectRect
+  end if
+  moveTo 0,(arect.bottom +1)
+  lineTo kSideBarWidth,(arect.bottom +1)
+  clipRect winPtr@.portRect
+  -- SIDE BAR LINE
+  moveTo kSideBarWidth,kTopBarHeight
+  lineTo kSideBarWidth,(winPtr@.portRect.bottom)-15
+  -- TOP BAR LINE
+  moveTo 0,kTopBarHeight-2
+  lineTo winPtr@.portRect.right,kTopBarHeight-2
+  moveTo 0,kTopBarHeight
+  lineTo winPtr@.portRect.right,kTopBarHeight
+  -- LIST CONTENTS
+  if myData@@.longIntType[11] = NIL then
+    makeList winPtr,myData@@.integerType[1]
+  end if
+  drawGraph FALSE,winPtr,myData
+  -- TOP BAR
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.top + kTopBarHeight-2 into arect.bottom
+  cliprect arect
+  setRect aRect,4,4,36,36
+  drawIcon 1000
+  moveTo 42,16
+  textFace 1
+  drawString "Stack Name: "
+  textFace 0
+  put value("short name of this stack") into stapelName
+  drawString stapelName
+  textFace 1
+  moveTo 42,28
+  if myData@@.integerType[1] = 1 then
+    put "Menu" into resKind
+  else if myData@@.integerType[1] = 2 then
+    put "Window" into resKind
+  else if myData@@.integerType[1] = 3 then
+    put "Icon" into resKind
+  else if myData@@.integerType[1] = 4 then
+    put "External" into resKind
+  end if
+  put myData@@.integerType[2] into theCount
+  drawString resKind && "count: "
+  textFace 0
+  drawString theCount
+  -- BOTTOM BAR
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.bottom -14 into arect.top
+  subtract 15 from arect.right
+  clipRect arect
+  subtract 1 from arect.left
+  put arect.left +kMyInfoWidth into arect.right
+  subtract 1 from arect.top
+  add 1 to arect.bottom
+  drawIcon 602
+  moveTo kMyInfoWidth+5,arect.bottom -4
+  drawString "© 1995-96 by Uli Kusterer."
+  -- CONTROLS
+  clipRect winPtr@.portRect
+  drawControls winPtr
+  endUpdate winPtr
+end updateEvent
+
+on drawGraph doErase,winPtr,myData
+  debug checkpoint
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  add kTopBarHeight+1 to arect.top
+  add kSideBarWidth+1 to arect.left
+  subtract 15 from arect.right
+  subtract 15 from arect.bottom
+  clipRect arect
+  if doErase = TRUE then eraseRect arect
+  put myData@@.longIntType[11] into myPic
+  setRect arect,myPic@@.integerType[3], myPic@@.integerType[2], 
+myPic@@.integerType[5],myPic@@.integerType[4] -- picFrame
+  put -getCtlValue(myData@@.longIntType[10]) into theOffset
+  offsetRect arect,0,theOffset
+  drawPicture myPic, arect
+  put myData@@.integerType[23] into selLine
+  if selLine > myData@@.integerType[2] then
+    put myData@@.integerType[2] into myData@@.integerType[23]
+  else if selLine < 0 then
+    if myData@@.integerType[2] > 0 then
+      put 1 into selLine
+    else
+      put 0 into selLine
+    end if
+  end if
+  if selLine > 0 then
+    put (selLine *12) into arect.bottom
+    add 2 to aRect.bottom
+    put arect.bottom -12 into arect.top
+    put winPtr@.portRect.right -15 into arect.right
+    put -getCtlValue(myData@@.longIntType[10]) into theOffset
+    add kTopBarHeight to theOffset
+    offsetRect arect,0,theOffset
+    hiliteRect (bitAnd(myData@@.integerType[24],1) ≠ 0)
+  end if
+  clipRect winPtr@.portRect
+end drawGraph
+
+on makeList winPtr,buttonNb
+  put getWRefCon(winPtr) into myData
+  put myData@@.longIntType[10] into theControl
+  if buttonNb = 1 then -- menu
+    put myRess("MENU") into liste
+    put return & myRess("CMNU") after liste
+    put return & myRess("cmnu") after liste
+    put return & myRess("hmnu") after liste
+  else if buttonNb = 2 then -- window
+    put myRess("WIND") into liste
+    put return & myRess("DLOG") after liste
+    put return & myRess("ALRT") after liste
+    put return & myRess("DITL") after liste
+    put return & myRess("WDEF") after liste
+    put return & myRess("hdlg") after liste
+  else if buttonNb = 3 then -- icon
+    put myRess("ICON") into liste
+    put return & myRess("cicn") after liste
+    put return & myRess("ICN#") after liste
+    put return & myRess("icl4") after liste
+    put return & myRess("icl8") after liste
+    put return & myRess("ics#") after liste
+    put return & myRess("ics4") after liste
+    put return & myRess("ics8") after liste
+    put return & myRess("icm#") after liste
+    put return & myRess("icm4") after liste
+    put return & myRess("icm8") after liste
+  else if buttonNb = 4 then -- XTernals
+    put myRess("XCMD") into liste
+    put return & myRess("xcmd") after liste
+    put return & myRess("XFCN") after liste
+    put return & myRess("xfcn") after liste
+  else if buttonNb = 5 then -- rest
+    put allResources("MENU,CMNU,cmnu,hmnu,DLOG,ALRT,DITL,WDEF,hdlg,ICON," &¬
+    "cicn,ICN#,icl4,icl8,ics#,ics4,ics8,icm#,icm4,icm8,XCMD,XFCN,xcmd,xfcn"¬
+    ) into liste
+  end if
+  repeat with x = (number of lines of liste) down to 1
+    if line x of liste = empty then delete line x of liste
+  end repeat
+  if myData@@.longIntType[13] ≠ NIL then disposHandle myData@@.longIntType[13]
+  put GetNewTextHandle(liste) into myData@@.longIntType[13]
+  put (number of lines of liste) into myData@@.integerType[2]
+  put stringWidth("012345") into sw
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  add kTopBarHeight to arect.top
+  add kSideBarWidth to arect.left
+  subtract 15 from arect.bottom
+  put arect.left +kMaxListWidth into arect.right
+  put arect.top + ((number of lines of liste) *12) +4 into arect.bottom
+  put openPicture(arect) into myPic
+  put arect.longIntType[1] into minMaxSize.longIntType[1]
+  put arect.longIntType[2] into minMaxSize.longIntType[2]
+  put minMaxSize.left + sw into minMaxSize.right
+  clipRect minMaxSize
+  textFace 0
+  repeat with x = 1 to (number of lines of liste)
+    moveTo minMaxSize.left +5,(x * 12) +arect.top
+    drawString (item 1 of line x of liste)
+  end repeat
+  put arect.longIntType[1] into minMaxSize.longIntType[1]
+  put arect.longIntType[2] into minMaxSize.longIntType[2]
+  add sw to minMaxSize.left
+  put minMaxSize.left + sw into minMaxSize.right
+  clipRect minMaxSize
+  textSize 9
+  textFace 0
+  repeat with x = 1 to (number of lines of liste)
+    moveTo minMaxSize.left +5,(x * 12) +arect.top
+    drawString item 2 of line x of liste
+  end repeat
+  put arect.longIntType[1] into minMaxSize.longIntType[1]
+  put arect.longIntType[2] into minMaxSize.longIntType[2]
+  put minMaxSize.left + arect.right - arect.left into minMaxSize.right
+  add sw*2 to minMaxSize.left
+  clipRect minMaxSize
+  textSize 9
+  textFace 0
+  repeat with x = 1 to (number of lines of liste)
+    moveTo minMaxSize.left +5,(x * 12) +arect.top
+    drawString item 3 of line x of liste
+  end repeat
+  closePicture
+  put myPic into myData@@.longIntType[11]
+  adjust_Scrollbar winPtr
+end makeList
+
+on hiliteRect doFill -- don't forget to set arect
+  GetPenState aPenState
+  penMode 58
+  if doFill then
+    paintRect arect
+  else
+    frameRect arect
+  end if
+  SetPenState aPenState
+end hiliteRect
+
+on selectRect -- don't forget to set arect
+  GetPenState aPenState
+  put newPtr(8) into myBox
+  put aRect.longIntType[1] into myBox@.longIntType[1]
+  put aRect.longIntType[2] into myBox@.longIntType[2]
+  penMode 58
+  penSize 2,2
+  insetRect myBox@,-1,-2
+  subtract 2 from myBox@.integerType[3]
+  invertRect myBox@
+  SetPenState aPenState
+  disposPtr myBox
+end selectRect
+
+on drawIcon theID -- don't forget to set arect before drawing!
+  put GetCIcon(theID) into myColorIcon
+  if mycolorIcon ≠ NIL then
+    plotCIcon aRect,myColorIcon
+    disposeCIcon myColorIcon
+  end if
+end drawIcon
+
+function myRess kind
+  put 0 into anid
+  put space into aname
+  put Count1Resources(kind) into resCount
+  repeat with y = 1 to resCount
+    put Get1IndResource(kind,y) into ahandle
+    if ahandle <> nil then
+      GetResInfo ahandle,anid,itstype,aname
+      put anid into theid
+      put return & itsType & "," & theid & "," & aname after ress
+    end if
+  end repeat
+  delete line 1 of ress
+  return ress
+end myRess
+
+function allResources xcept
+  put 0 into anid
+  put space into aname
+  put count1Types() into tpCount
+  repeat with x = 1 to tpCount
+    put FALSE into forbidden
+    get1IndType kind,x
+    repeat with z = 1 to (number of items of xcept)
+      if char 1 to 4 of item z of xcept = kind then
+        put TRUE into forbidden
+        exit repeat
+      end if
+    end repeat
+    if forbidden = TRUE then next repeat
+    put Count1Resources(kind) into resCount
+    repeat with y = 1 to resCount
+      put Get1IndResource(kind,y) into ahandle
+      if ahandle <> nil then
+        GetResInfo ahandle,anid,itstype,aname
+        put anid into theid
+        put return & itsType & "," & theid & "," & aname after ress
+      end if
+    end repeat
+  end repeat
+  delete line 1 of ress
+  return ress
+end allResources
+
+on activateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  put myData@@.longIntType[10] into theControl
+  --activation sequence
+  if bitAnd(eventInfoPtr@.event.modifiers,activeFlag) ≠ 0 then
+    beginEdit_Evt winPtr
+    showControl theControl
+    put getMHandle(3) into myMenu
+    if myMenu ≠ NIL then
+      disableItem myMenu 1
+      disableItem myMenu 3
+      disableItem myMenu 4
+      disableItem myMenu 5
+    end if
+  else
+    do_GiveUpEdit winPtr
+    hideControl theControl
+    put getMHandle(3) into myMenu
+    if myMenu ≠ NIL then
+      enableItem myMenu 1
+      enableItem myMenu 3
+      enableItem myMenu 4
+      enableItem myMenu 5
+    end if
+  end if
+  invalRect winPtr@.portRect
+end activateEvent
+
+on giveUpEditEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  do_GiveUpEdit winPtr
+end giveUpEditEvent
+
+on app4Event eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if bitAnd(eventInfoPtr@.event.message,1) ≠ 0 then
+    setXWIdleTime winPtr,0
+  else
+    setXWIdleTime winPtr,60
+  end if
+end app4Event
+
+on do_GiveUpEdit winPtr
+  endXWedit winPtr
+  put getWRefCon(winPtr) into myData
+  if bitAnd(myData@@.integerType[24],1) ≠ 0
+  then subtract 1 from myData@@.integerType[24]
+  invalRect winPtr@.portRect
+end do_GiveUpEdit
+
+on SendEvent eventInfoPtr
+  put eventInfoPtr@.eventParams.ptrType@.str255type into evtName
+  put eventInfoPtr@.eventWindow into winPtr
+  if evtName = "Update" then
+    updateContents winPtr,winPtr@.refCon
+  end if
+end SendEvent
+
+on keyDownEvent eventInfoPtr
+  put BitAnd(eventInfoPtr@.event.message,charCodeMask) into theCharNum
+  if theCharNum = 8 then
+    doDelete eventInfoPtr@.eventWindow
+  else
+    sysbeep 30
+  end if
+end keyDownEvent
+
+on editEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put eventInfoPtr@.what into theCmd
+  if theCmd = xEditClear then
+    doDelete winPtr
+  else if theCmd = xEditCopy then
+    doCopy winPtr
+  else
+    sysbeep 30
+  end if
+end editEvent
+
+on doDelete winPtr
+  put winPtr@.refCon into myData
+  put HyperCardText(myData@@.longIntType[13]) into myText
+  HyperCardOwns myText -- prevent disposal
+  put item 1 of line (myData@@.integerType[23]) of myText into rsType
+  put item 2 of line (myData@@.integerType[23]) of myText into rsID
+  sysbeep 30
+  put ShowHcAlert(confirmDelDlgId,"Do you really want to delete the '" &¬
+  rsType & "' resource of ID" && rsID & "?") into myDecision
+  if myDecision ≠ 1 then
+    put getResource(rsType,rsID) into resHandle
+    if resHandle ≠ NIL then
+      rmveResource resHandle
+    else
+      sysbeep 30
+      put ShowHcAlert(1,"Removing the resource failed.") into myDecision
+    end if
+    updateContents winPtr,myData
+  end if
+end doDelete
+
+on doCopy winPtr
+  put winPtr@.refCon into myData
+  put HyperCardText(myData@@.longIntType[13]) into myText
+  HyperCardOwns myText -- prevent disposal
+  put item 1 of line (myData@@.integerType[23]) of myText into rsType
+  put item 2 of line (myData@@.integerType[23]) of myText into rsID
+  put getResource(rsType,rsID) into resHandle
+  if resHandle ≠ NIL then
+    put zeroScrap() into myErr
+    put putScrap(getHandleSize(resHandle),rsType,resHandle@) into myErr
+    if myErr ≠ 0 then
+      sysbeep 30
+      put ShowHcAlert(1,"Couldn't copy the resource.") into myDecision
+    end if
+  else
+    sysbeep 30
+    put ShowHcAlert(1,"The resource couldn't be found.") into myDecision
+    updateContents winPtr,myData
+  end if
+end doCopy
+
+on doPaste winPtr
+  put winPtr@.refCon into myData
+  if myData@@.integerType[1] = 1 then
+    
+  end if
+end doPaste

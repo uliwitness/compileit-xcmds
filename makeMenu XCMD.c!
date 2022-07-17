@@ -1,0 +1,41 @@
+GLOBAL myMenu:Handle, resData:Handle
+
+on makeMenu mnuID,mNam,itz
+  if mode = "?" then
+    return syntax()
+  else if mode = "!" then
+    return copyright()
+  end if
+  if noInteger(mnuID) then
+    put uniqueID("MENU") into mnuID
+  end if
+  put get1Resource("MENU",mnuID+0) into testResHand
+  if testResHand ≠ NIL then
+    RmveResource testResHand
+  end if
+  put newMenu(mnuID,mNam) into myMenu
+  if myMenu = NIL then return "Error: Not enough memory."
+  repeat with x = (number of items of itz) down to 1
+    insMenuItem myMenu, item x of itz, 0
+  end repeat
+  put newHandle(length(myMenu)) into resData
+  BlockMove myMenu@, resData@, length(myMenu)
+  addResource myMenu,"MENU",mnuID,mNam
+  disposeMenu myMenu
+end makeMenu
+
+function syntax
+  return "makeMenu <resID>,<name>,<items>"
+end syntax
+
+function copyright
+  return "makeMenu 1.01, © 1995 by Martin Kusterer, all rights rsvd."
+end copyright
+
+function noInteger nb
+  if nb = empty then return TRUE
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then return TRUE
+  end repeat
+  return FALSE
+end noInteger

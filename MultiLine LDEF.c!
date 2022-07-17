@@ -1,0 +1,79 @@
+CodeResource "LDEF" 700
+
+RecordOffset listPort:P @ 8
+
+pascal on MultiLine nachricht:I, ausgewaehlt:B, @zellenRect:R,¬
+  dieZelle:L, inhaltOffs:I, inhaltLen:I, myList:P
+  if nachricht = 0 then
+    -- oh jeh!
+  else if nachricht = 1 then
+    malen myList,ausgewaehlt,zellenRect,dieZelle,inhaltLen
+  else if nachricht = 2 then
+    auswahl ausgewaehlt,zellenRect
+  else if nachricht = 3 then
+    -- oh jeh-er!
+  else
+    sysbeep 10
+  end if
+end MultiLine
+
+on malen myList,ausgewaehlt,zellenRect,theCell,inhaltLen
+  put newPtr(8) into fData
+  getPort aPort
+  setPort myList@@.listPort
+  eraseRect zellenRect@
+  put "x" into myStr
+  put charsHandle(myStr) into myData
+  setHandleSize myData,inhaltLen
+  HLock myData
+  LGetCell myData@,inhaltLen,theCell,myList
+  HUnlock myData
+  GetFontInfo fData@
+  repeat with x = 1 to (number of lines of myStr)
+    put (x-1) * (fData@.top + fData@.left +fData@.right) into newLN
+    moveTo zellenRect@.left +1 +fData@.bottom,¬
+    zellenRect@.top +fData@.top +newLN
+    drawString (line x of myStr)
+  end repeat
+  if ausgewaehlt then
+    penMode 58
+    paintRect zellenRect@
+    penMode patCopy
+  end if
+  disposPtr fData
+  setPort aPort
+end malen
+
+on auswahl ausgewaehlt,zellenRect
+  if ausgewaehlt or not ausgewaehlt then
+    penMode 58
+    paintRect zellenRect@
+    penMode patCopy
+  end if
+end auswahl
+
+on drawBRRect aRect
+  moveTo aRect@.left,aRect@.bottom -1
+  lineTo aRect@.right -1,aRect@.bottom -1
+  lineTo aRect@.right -1,aRect@.top
+end drawBRRect
+
+function charPos ch,str
+  repeat with x = 1 to length(str)
+    if char x of str = char 1 of ch then
+      repeat with y = 2 to length(ch)
+        if char y of ch ≠ char x+y-1 of str then
+          put FALSE into isSame
+          exit repeat
+        else
+          put TRUE into isSame
+        end if
+      end repeat
+      if isSame then
+        return x
+        exit repeat
+      end if
+    end if
+  end repeat
+  return 0
+end charPos

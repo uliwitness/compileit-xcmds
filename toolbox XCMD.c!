@@ -1,0 +1,212 @@
+GLOBAL aRect:R
+
+Constant kFirstListID = 24900
+Constant kWindowResID = 24900
+
+on toolbox str
+  if str = "?" then
+    return "toolbox"
+  else if str = "!" then
+    return "toolbox 1.0, © 1996 by Uli Kusterer, all rights reserved."
+  end if
+  put getNewXWindow("WIND",kWindowResID,FALSE,TRUE) into winPtr
+  if winPtr = NIL then return "Error: Couldn't open window."
+  put newHandle(8) into myData
+  if myData = NIL then
+    closeXWindow winPtr
+    return "Error: Couldn't allocate privates."
+  end if
+  put myData into winPtr@.refCon
+  put 1 into myData@@.integerType[3]
+  put kFirstListID into myData@@.integerType[4]
+  put getResource("*ULI",kFirstListID) into myData@@.handleType[1]
+  if myData@@.handleType[1] = NIL then
+    closeXWindow winPtr
+    return "Error: Couldn't get tool lists."
+  end if
+  recalcWindow winPtr
+  showWindow winPtr
+end toolbox
+
+on recalcWindow winPtr
+  put winPtr@.refCon into myData
+  put (getHandleSize(myData@@.handleType[1]) -2) div 2 into toolCount
+  sizeWindow winPtr,22,21*toolCount+40,FALSE
+  invalRect winPtr@.portRect
+end recalcWindow
+
+on openEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  xwAllowReEntrancy winPtr,TRUE,TRUE
+  setXWIdleTime winPtr,0
+end openEvent
+
+function closeEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon into myData
+  if myData ≠ NIL then
+    if myData@@.handleType[1] ≠ NIL then
+      releaseResource myData@@.handleType[1]
+    end if
+    disposHandle myData
+  end if
+  return TRUE
+end closeEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon into myData
+  put myData@@.handleType[1] into myList
+  put newPtr(8) into box
+  hiliteWindow winPtr,TRUE
+  beginUpdate winPtr
+  put (getHandleSize(myList) -2) div 2 into toolCount
+  put myList@@.integerType[1] into resID
+  drawIcon resID,-1,-1,23,41
+  put 40 into aTop
+  put 23 into aRight
+  put -1 into aLeft
+  put aTop +22 into aBottom
+  repeat with x = 2 to (toolCount +1)
+    put myList@@.integerType[x] into resID
+    drawIcon resID,aLeft,aTop,aRight,aBottom
+    if x-1 = myData@@.integerType[3] then
+      setRect box@,aLeft,aTop,aRight,aBottom
+      insetRect box@,1,1
+      invertRect box@
+    end if
+    add 21 to aTop
+    add 21 to aBottom
+  end repeat
+  endUpdate winPtr
+  disposPtr box
+end updateEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon into myData
+  put propNamePtr@.str255type into theProp
+  put (getHandleSize(myData@@.handleType[1]) -2) div 2 into toolCount
+  if theProp = "hilitedButton" then
+    if theValue+0 <= toolCount and theValue+0 >= 1 then
+      put theValue+0 into myData@@.integerType[3]
+      invalRect winPtr@.portRect
+      runHandler "TB_Choose" && myData@@.integerType[4] -kFirstListID+1 &¬
+      "," & myData@@.integerType[3]
+    else
+      return TRUE
+    end if
+  else if theProp = "currentGroup" then
+    setGroup theValue +kFirstListID-1,winPtr
+  else return TRUE
+  return FALSE
+end SetPropEvent
+
+function GetPropEvent eventInfoPtr,propNamePtr
+  put propNamePtr@.str255type into theProp
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon into myData
+  if theProp = "hilitedButton" then
+    return myData@@.integerType[3]
+  else if theProp = "currentGroup" then
+    return myData@@.integerType[4] -kFirstListID+1
+  else exit GetPropEvent -- reject any other properties
+end GetPropEvent
+
+on app4Event eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if bitAnd(eventInfoPtr@.event.message,1) ≠ 0 then
+    showWindow winPtr
+  else
+    hideWindow winPtr
+  end if
+end app4Event
+
+on hidePalettesEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  hideWindow winPtr
+end hidePalettesEvent
+
+on showPalettesEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  showWindow winPtr
+end showPalettesEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.event.where into mousePos
+  put eventInfoPtr@.eventWindow into winPtr
+  hiliteWindow winPtr,TRUE
+  if frontWindow() ≠ winPtr then
+    selectWindow winPtr
+  end if
+  put FindWindow(mousePos,winPtr) into temp
+  if temp is inContent then
+    hitMe winPtr,mousePos
+  else if temp is inDrag then
+    setRect arect,-32000,-32000,32000,32000
+    DragWindow winPtr,mousePos,arect
+  else if temp is inGoAway then
+    if trackGoAway(winPtr,mousePos) then
+      CloseXWindow winPtr
+    end if
+  end if
+end mouseDownEvent
+
+on hitMe winPtr,mousePos
+  put winPtr@.refCon into myData
+  put myData@@.handleType[1] into myList
+  globalToLocal mousePos
+  put newPtr(8) into box
+  put (getHandleSize(myList) -2) div 2 into toolCount
+  setRect box@,-1,-1,23,41
+  if ptInRect(mousePos,box@) then
+    setGroup myData@@.integerType[4]+1,winPtr
+  else
+    setRect box@,-1,41,23,62
+    repeat with x = 1 to toolCount
+      if ptInRect(mousePos,box@) then
+        hitTool x,winPtr
+        exit repeat
+      end if
+      offsetRect box@,0,21
+    end repeat
+  end if
+  disposPtr box
+end hitMe
+
+on setGroup num,winPtr
+  put winPtr@.refCon into myData
+  releaseResource myData@@.handleType[1]
+  put getResource("*ULI",num) into resTemp
+  if resTemp = NIL then
+    put kFirstListID into myData@@.integerType[4]
+    put getResource("*ULI",kFirstListID) into myData@@.handleType[1]
+  else
+    put num into myData@@.integerType[4]
+    put resTemp into myData@@.handleType[1]
+  end if
+  put 1 into myData@@.integerType[3]
+  recalcWindow winPtr
+  runHandler "TB_Choose" && myData@@.integerType[4] -kFirstListID+1 &¬
+  "," & myData@@.integerType[3]
+end setGroup
+
+on hitTool nb,winPtr
+  put winPtr@.refCon into myData
+  put nb into myData@@.integerType[3]
+  invalRect winPtr@.portRect
+  runHandler "TB_Choose" && myData@@.integerType[4] -kFirstListID+1 &¬
+  "," & myData@@.integerType[3]
+end hitTool
+
+on drawIcon theID,iLeft,iTop,iRight,iBottom
+  put newPtr(8) into box
+  setRect box@,iLeft,iTop,iRight,iBottom
+  put GetCIcon(theID) into myColorIcon
+  if mycolorIcon ≠ NIL then
+    plotCIcon box@,myColorIcon
+    disposeCIcon myColorIcon
+  end if
+  disposPtr box
+end drawIcon

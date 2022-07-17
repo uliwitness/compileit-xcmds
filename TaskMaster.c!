@@ -1,0 +1,56 @@
+GLOBAL myEdit:Handle
+GLOBAL myTasks:Handle
+GLOBAL myHandle:Handle
+GLOBAL myStr:Str255
+
+on TaskMaster mode,punkt
+  global TaskMaster_fileRefNum
+  if mode = "install" then
+    put GetMHandle(3) into myEdit
+    put "Tasks!»/" into myStr
+    InsMenuItem myEdit,myStr,99
+    put NewMenu(200,"Tasks") into myTasks
+    GetItem myEdit,15,myStr
+    delete menuitem 15 of menu edit
+    InsMenuItem myTasks,myStr,99
+    put getIndString(128,28) into myPath -- get stack translators folder
+    put "TaskMaster Library" after myPath
+    put openResFile(myPath) into TaskMaster_fileRefNum
+    UseResFile TaskMaster_fileRefNum
+    AddResMenu myTasks,"TASK"
+    InsertMenu myTasks,-1
+  else if mode = "remove" then
+    reset menubar
+    put GetMHandle(200) into myTasks
+    DeleteMenu myTasks
+    ReleaseResource myTasks
+    CloseResFile TaskMaster_fileRefNum
+    put empty into TaskMaster_fileRefNum
+  else if mode = "domenu" then
+    UseResFile TaskMaster_fileRefNum
+    put GetNamedResource("TASK",punkt) into myHandle
+    if myHandle = nil then return "Error: Unknown menu item."
+    put myHandle@@.Str255Type into theCmd
+    do theCmd
+  else
+    return "Error: Unrecognized mode."
+  end if
+end TaskMaster
+
+function getIndString strListID,index
+  put GetResource("STR#",strListID) into ahandle
+  if ahandle = nil then return empty
+  put ahandle@.ptrtype into aptr
+  put index -1 into counter
+  if counter >= aptr@.integertype or counter<0 then return empty
+  add 2 to aptr
+  HLock ahandle
+  repeat while counter >0
+    add chartonum(aptr@.chartype) +1 to aptr
+    subtract 1 from counter
+  end repeat
+  put aptr@.Str255type into theString
+  HUnlock ahandle
+  ReleaseResource ahandle
+  return theString
+end GetIndString

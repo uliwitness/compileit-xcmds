@@ -1,0 +1,62 @@
+-- Object Types:
+Constant uBtnKind = 256
+Constant uFldKind = 0
+Constant uIconKind = 1
+
+on createUlisPalette pictID,dimmID,wdID,wdName,wdHighlight,wdClose,¬
+  objRects,objScripts,objKinds
+  if wdRect = "?" then
+    return "createUlisPalette <pictID>,<dimmID>,<wdefID>,<name>," &¬
+    "<HiliteKind>,<hasCloseBox>,<objRects>,<objScripts>,<objKinds>"
+  else if wdRect = "!" then
+    return "createUlisPalette 1.0, © 1996 by Uli Kusterer, all rights" &&¬
+    "reserved."
+  end if
+  put newHandle(14) into myPal
+  put wdID+0 into integer 1 of handle myPal
+  if wdHighlight = "Invert" then
+    put 1 into integer 2 of handle myPal
+  else if wdHighlight = "Frame" then
+    put 0 into integer 2 of handle myPal
+  else if wdHighlight = "InvertShort" then
+    put 3 into integer 2 of handle myPal
+  else if wdHighlight = "FrameShort" then
+    put 2 into integer 2 of handle myPal
+  end if
+  if wdClose = TRUE then
+    put 1 into integer 3 of handle myPal
+  else
+    put 0 into integer 3 of handle myPal
+  end if
+  put 0 into integer 4 of handle myPal
+  put pictID+0 into integer 5 of handle myPal
+  put dimmID+0 into integer 6 of handle myPal
+  set the itemDelim to tab
+  put (number of items of objRects) into pric
+  put pric into integer 7 of handle myPal
+  repeat with x = 1 to pric
+    put newHandle(10) into myObject
+    strToRect item x of objRects,myObject@@
+    put strToNum(item x of objKinds) into integer 5 of handle myObject
+    put item x of objScripts into myTx
+    put charsHandle(myTx) into theStr
+    put getHandleSize(theStr) into theLen
+    setHandleSize myObject,10+theLen
+    repeat with y = 1 to theLen
+      put char y of handle theStr into char y+10 of handle myObject
+    end repeat
+    add 10 to theLen
+    put getHandleSize(myPal) into palSize
+    setHandleSize myPal,palSize+theLen
+    repeat with y = 1 to theLen
+      put char y of handle myObject into char y+palSize of handle myPal
+    end repeat
+    disposHandle myObject
+  end repeat
+  put get1NamedResource("CsPl",wdName) into myRes
+  if myRes ≠ NIL then
+    rmveResource myRes
+  end if
+  AddResource myPal,"CsPl",uniqueID("CsPl"),wdName
+  writeResource myPal
+end createUlisPalette

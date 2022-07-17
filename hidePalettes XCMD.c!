@@ -1,0 +1,11 @@
+on hidePalettes mode
+  if mode = TRUE then
+    hideHcPalettes
+  else if mode = FALSE then
+    showHcPalettes
+  else if mode = "?" then
+    return "hidePalettes <TRUE|FALSE>"
+  else if mode = "!" then
+    return "hidePalettes 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+end hidePalettes

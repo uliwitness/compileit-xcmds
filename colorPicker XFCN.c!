@@ -1,0 +1,19 @@
+GLOBAL theColor:R[6]
+
+function colorPicker theClr,str
+  if theClr = "?" then
+    return "put|get colorPicker(<color>[,<prompt>])"
+  else if theClr = "!" then
+    return "colorPicker 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  if str = empty then put "Please pick a color:" into str
+  setPt myPt,0,0
+  put item 1 of theClr into theColor.integerType[1]
+  put item 2 of theClr into theColor.integerType[2]
+  put item 3 of theClr into theColor.integerType[3]
+  if getColor(myPt,str,theColor,theColor) = FALSE then return theClr
+  put BitAnd(theColor.integerType[1],$FFFF) into item 1 of theClr
+  put BitAnd(theColor.integerType[2],$FFFF) into item 2 of theClr
+  put BitAnd(theColor.integerType[3],$FFFF) into item 3 of theClr
+  return theClr
+end colorPicker

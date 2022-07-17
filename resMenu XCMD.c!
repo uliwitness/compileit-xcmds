@@ -1,0 +1,46 @@
+GLOBAL myMenu:Handle
+
+on resMenu mode,rsID,bfID
+  if mode = "?" then
+    return syntax()
+  else if mode = "!" then
+    return copyright()
+  end if
+  if rsID is not an integer then return "Error: menu ID must be integer."
+  put rsID+0 into resID
+  if mode = "Add" or mode = "A" then
+    if bfID is not an integer then return "Error: <before> menu ID must be integer."
+    put bfID+0 into beforeID
+    put GetMenu(resID) into myMenu
+    if myMenu = NIL then
+      return "Error: Couldn't load menu resource."
+    end if
+    InsertMenu myMenu,beforeID
+  else if mode = "Load" or mode = "L" then
+    put GetMenu(resID) into myMenu
+    if myMenu = NIL then
+      return "Error: Couldn't load menu resource."
+    end if
+    InsertMenu myMenu,-1
+  else if mode = "Remove" or mode = "R" then
+    put GetMHandle(resID) into myMenu
+    if myMenu = NIL then return "Error: Menu of this ID doesn't exist."
+    DeleteMenu resID
+    ReleaseResource myMenu
+  else if mode = "Hide" or mode = "H" then
+    put GetMHandle(resID) into myMenu
+    if myMenu = NIL then return "Error: Menu of this ID doesn't exist."
+    DeleteMenu resID
+  else
+    return "Error: Syntax is" && syntax()
+  end if
+  DrawMenuBar
+end resMenu
+
+function syntax
+  return "resMenu <A[dd] | L[oad] | R[emove] | H[ide]>,<menuID>[,<beforeID>]"
+end syntax
+
+function copyright
+  return "1.0, © 1995 by Martin Kusterer, all rights rsvd."
+end copyright

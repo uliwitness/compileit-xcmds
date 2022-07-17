@@ -1,0 +1,44 @@
+function readRes kind,num
+  if kind = "?" then
+    return "put|get readRes(<type>,<IdOrName>[,<filePath>])"
+  else if kind = "!" then
+    return "readRes 2.1, © 1995-2000 by Uli Kusterer, all rights reserved."
+  end if
+  put 0 into fileNum
+  if paramcount() >= 3 then
+    put OpenResFile(param(3)) into fileNum
+    if fileNum < 0 then -- error
+      return "Error: Couldn't open resource file (" & fileNum & ")."
+    end if
+  end if
+  if isInteger(num) then
+    put getResource(kind,num) into resData
+  else
+    put getNamedResource(kind,num) into resData
+  end if
+  if fileNum > 0 then
+    CloseResFile fileNum
+  end if
+  if resData = NIL then
+    return "Error: resource not found."
+  end if
+  repeat with x = 1 to getHandleSize(resData)
+    put resData@@.charType[x-1] into currChar
+    if charToNum(currChar) = 0 then
+      put "\0" after mydata
+    else if currChar = "\" then
+      put "\\" after mydata
+    else
+      put currChar after mydata
+    end if
+  end repeat
+  return mydata
+end readRes
+
+function isInteger nb
+  if nb = empty then return FALSE
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then return FALSE
+  end repeat
+  return TRUE
+end isInteger

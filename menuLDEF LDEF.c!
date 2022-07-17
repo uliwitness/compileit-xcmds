@@ -1,0 +1,49 @@
+CodeResource "LDEF" 700
+
+pascal on menuLDEF nachricht:I, ausgewaehlt:B, @zellenRect:R,¬
+  dieZelle:L, inhaltOffs:I, inhaltLen:I, myList:P
+  HLock myList
+  put myList@ into inhaltPtr
+  add inhaltOffs to inhaltPtr
+  if nachricht = lInitMsg then
+    -- oh jeh!
+  else if nachricht = lDrawMsg then
+    malen ausgewaehlt,zellenRect,dieZelle,inhaltPtr,inhaltLen
+  else if nachricht = lHiliteMsg then
+    auswahl ausgewaehlt,zellenRect
+  else if nachricht = lCloseMsg then
+    -- oh jeh-er!
+  end if
+  HUnlock myList
+end menuLDEF
+
+on malen ausgewaehlt,zellenRect,theCell,inhaltPtr,inhaltLen
+  put newRgn() into svClip
+  put newPtr(8) into cellRect
+  put newPtr(8) into fontData
+  put zellenRect@.topLeft into cellRect@.topLeft
+  put zellenRect@.botRight into cellRect@.botRight
+  getClip svClip
+  clipRect zellenRect@
+  GetFontInfo fontData@
+  add fontData@.bottom+6 to cellRect@.left
+  clipRect cellRect@
+  moveTo cellRect@.left,cellRect@.bottom -fontData@.left
+  drawText inhaltPtr,0,inhaltLen
+  clipRect zellenRect@
+  if ausgewaehlt = TRUE then
+    penMode 58
+    paintRect zellenRect@
+    penMode patCopy
+  end if
+  SetClip svClip
+  disposPtr fontData
+  disposPtr cellRect
+  disposeRgn svClip
+end malen
+
+on auswahl ausgewaehlt,zellenRect
+  penMode 58
+  paintRect zellenRect@
+  penMode patCopy
+end auswahl

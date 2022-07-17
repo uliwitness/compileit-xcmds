@@ -1,0 +1,13 @@
+GLOBAL aRect:R
+
+on wildWindow theName,theRect,theType,flBool
+  put (flBool = TRUE) into flot
+  strToRect theRect,aRect
+  put theType+0 into theWdef
+  put gestalt("qd  ",myQdVers) into anErr
+  put (hiWord(myQdVers) > 0) into colorAvail
+  put newXWindow(aRect,theName,TRUE,theWdef,colorAvail,flot) into winPtr
+  if winPtr = NIL then return "Error: Couldn't open window."
+  put newHandle(2) into winPtr@.refCon
+  
+end wildWindow

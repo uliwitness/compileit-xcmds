@@ -1,0 +1,93 @@
+GLOBAL arect:R, myEvent:R[16]
+
+on RW_GetMenuInfo resId
+  if resID = "?" then
+    return "RW_GetMenuInfo <resID>"
+  else if resID = "!" then
+    return "RW_GetMenuInfo 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  put getMenu(resID+0) into myMenu
+  if myMenu = NIL then
+    sysbeep 30
+    put showHcAlert(1,"The Info Dialog couldn't be displayed because" &&¬
+    "the menu wasn't found.") into temp
+    exit RW_GetMenuInfo
+  end if
+  hiliteWindow frontDocWindow(),FALSE
+  put getNewDialog(2089, NIL, pointer(-1)) into dlogPtr
+  if dlogPtr = NIL then
+    sysbeep 30
+    put showHcAlert(1,"Some Resources for displaying the dialog are" &&¬
+    "missing.") into temp
+    exit RW_GetMenuInfo
+  end if
+  GetDItem dlogPtr,2,itemType,itemHandle,arect -- menu name
+  SetIText itemHandle,myMenu@@.menuData
+  GetDItem dlogPtr,7,itemType,itemHandle,arect -- res name
+  GetResInfo myMenu,anid,itstype,aname
+  SetIText itemHandle,aname
+  SelIText dlogPtr,7,0,32767 -- select whole name
+  GetDItem dlogPtr,3,itemType,itemHandle,arect -- item count
+  SetIText itemHandle,countMItems(myMenu)
+  GetDItem dlogPtr,10,itemType,itemHandle,arect -- res ID
+  SetIText itemHandle,resID
+  GetDItem dlogPtr,12,itemType,itemHandle,arect -- menu ID
+  SetIText itemHandle,myMenu@@.menuID
+  if bitAnd(myMenu@@.enableFlags,1) ≠ 0 then -- menu is enabled
+    GetDItem dlogPtr,4,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1 -- check the box
+  end if
+  setRect arect,-32000,-32000,32000,32000
+  repeat
+    put waitNextEvent(everyEvent, myEvent, 15, NIL) into haveEvent
+    if haveEvent then
+      if isDialogEvent(myEvent) then
+        put dialogSelect(myEvent,dlogPtr,itemHit) into haveEvent
+        if haveEvent then
+          if myEvent.what = mouseDown then
+            if itemHit = 1 then
+              exit repeat
+            else if itemHit = 4 then
+              GetDItem dlogPtr,4,itemType,itemHandle,arect
+              put GetCtlValue(itemHandle) into myVal
+              SetCtlValue itemHandle,(not myVal)
+            end if
+          end if
+        end if
+      else
+        if myEvent.what = mouseDown then
+          put findWindow(myEvent.where,thisWindow) into clickPlace
+          if thisWindow = dlogPtr and clickPlace = inDrag then
+            setRect arect,-32000,-32000,32000,32000
+            dragWindow dlogPtr, myEvent.where, arect
+          else
+            sysbeep 10
+          end if
+        else if myEvent.what = updateEvt then
+          sendHcEvent myEvent
+        else if myEvent.what = mouseDown then
+          sysbeep 10
+        else if myEvent.what = keyDown then
+          sysbeep 10
+        end if
+      end if
+    else
+      if isDialogEvent(myEvent) then
+        put dialogSelect(myEvent,dlogPtr,itemHit) into gotEvent
+      end if
+    end if
+  end repeat
+  GetDItem dlogPtr,4,itemType,itemHandle,arect
+  put GetCtlValue(itemHandle) into myVal
+  if myVal = TRUE and bitAnd(myMenu@@.enableFlags,1) = 0 then
+    add 1 to myMenu@@.enableFlags
+  else if myVal = FALSE and bitAnd(myMenu@@.enableFlags,1) ≠ 0 then
+    subtract 1 from myMenu@@.enableFlags
+  end if
+  GetDItem dlogPtr,7,itemType,itemHandle,arect -- res name
+  GetIText itemHandle,aname
+  SetResInfo myMenu,resID+0,aname
+  disposDialog dlogPtr
+  changedResource myMenu
+  hiliteWindow frontDocWindow(),TRUE
+end RW_GetMenuInfo

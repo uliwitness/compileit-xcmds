@@ -1,0 +1,23 @@
+function readText path,nameOrID
+  if path = "?" then return "put|get readText <path>,<resID>"
+  if path = "!" then return "readText 1.1.1, © 1995-98 by Uli Kusterer, all rights resvd."
+  put OpenResFile(path) into myRefNum
+  if myRefNum <= 0 then
+    return "ERROR: Couldn't open file," && myRefNum
+  end if
+  put getResource("TEXT",nameOrID) into textHandle
+  if textHandle = NIL then
+    CloseResFile myRefNum
+    return "Error: Couldn't read resource."
+  end if
+  put "mk" into str
+  put charsHandle(str) into theStr
+  hLock theStr
+  put getHandleSize(textHandle) into strLen
+  setHandleSize theStr,(strLen +1)
+  blockMove textHandle@,theStr@,strLen
+  put numToChar(0) into rsHdl@@.charType[strLen]
+  hUnlock theStr
+  CloseResFile myRefNum
+  return str
+end readText

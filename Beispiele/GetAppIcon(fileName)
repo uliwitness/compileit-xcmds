@@ -1,0 +1,84 @@
+global ICN_ID:I,GotIt:B
+
+function GetAppIcon fileName
+  put CurResFile() into oldFile
+  put OpenResFile(filename) into refNum
+  UseResFile refNum
+  put 1 into resHndl
+  put 1 into x
+  repeat until resHndl=0
+    put Get1IndResource("FREF",x) into resHndl
+    if resHndl≠nil then
+      if resHndl@@.osType="APPL" then
+        put resHndl@@.integerType[3] into ICN_ID_2
+        put true into GotIt
+        releaseResource resHndl
+        exit repeat
+      end if
+      releaseResource resHndl
+    end if
+    add one to x
+  end repeat
+  if GotIt then
+    DoTheBNDL ICN_ID_2
+    if gotit then
+      get ICN_2_ICON(ICN_ID,oldFile)
+    else get "application"
+  else get "application"
+  UseResFile oldFile
+  CloseResFile refNum
+  return it
+end GetAppIcon
+
+-- my library code
+
+function ICN_2_ICON resId,oldResFile
+  put GetResource("ICN#",resId) into hndl
+  if hndl=NIL then return "application" -- ∆
+  else
+    put NewHandleClear(128) into iconH
+    BlockMove hndl@,iconH@,128
+    releaseResource hndl
+    UseResFile oldResFile -- ∆
+    get uniqueId("ICON") -- ∆
+    AddResource iconH,"ICON",it,("An Application's Icon--id" && it)
+    WriteResource iconH -- ∆
+    releaseResource iconH
+    updateResFile curResFile() -- ∆∆∆
+    return it
+  end if
+end ICN_2_ICON
+
+on DoTheBNDL LocalID
+  put Get1IndResource("BNDL",1) into bHand
+  put ReadBNDL(bHand,LocalID,"ICN#") into ICN_ID
+  releaseResource bHand
+end DoTheBNDL
+
+function ReadBNDL bHand,LocalID,BNDL_TYPE
+  put false into GotIt
+  MoveHHi bHand
+  Hlock bHand
+  put bHand@.ptrType into ptr
+  add 6 to ptr -- creator & owner id
+  put (ptr@.integerType)+1 into MainCount
+  add 2 to ptr -- main list count
+  repeat mainCount
+    if ptr@.osType≠BNDL_TYPE then
+      add 4 to ptr -- type
+      add (ptr@.integerType*4)+6 to ptr
+    else
+      add 4 to ptr -- type
+      put (ptr@.integerType)+1 into subCount
+      add 2 to ptr -- sub count
+      repeat subcount
+        if ptr@.integerType=LocalID then
+          put ptr@.integerType[2] into resID
+          put true into GotIt
+          return resID
+        else add 4 to ptr
+      end repeat
+    end if
+  end repeat
+  return 0
+end ReadBNDL

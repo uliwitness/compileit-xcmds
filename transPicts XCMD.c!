@@ -1,0 +1,423 @@
+GLOBAL myPic1:handle, myPic2:handle, myPic:handle
+GLOBAL picRect1:record[8], picRect2:record[8], cardRect:record[8]
+GLOBAL effectRect:record[8], effectRect2:record[8]
+
+on transPicts mode,pic1,pic2,winID
+  if mode = "?" then
+    return "transPicts <effect>,<sourcePict>,<destPict>[,<windowID>]"
+  else if mode = "!" then
+    return "transPicts 1.2, © 1995 by Uli Kusterer, all rights reserved."
+  else if mode = "effect?" then
+    return "boxes,rectOpen,rectClose,irisOpen,irisClose,wipeLeft," &¬
+    "wipeRight,wipeUp,wipeDown,scrollLeft,scrollRight,scrollUp," &¬
+    "scrollDown,stretchLeft,stretchRight,stretchUp,stretchDown," &¬
+    "wipeTopLeft,wipeBotLeft,wipeBotRight,wipeTopRight,shrinkUp," &¬
+    "shrinkDown,shrinkLeft,shrinkRight,pushUp,pushDown,pushLeft," &¬
+    "pushRight"
+  end if
+  if noInteger(winID) = FALSE then
+    setPort winID
+  end if
+  getPort winPtr
+  setRect cardRect, winPtr@.portRect.left, winPtr@.portRect.top, winPtr@.portRect.right, winPtr@.portRect.bottom
+  if ":" is in pic1 then
+    put getPictFile(pic1) into myPic1
+    if myPic1 = nil then -- maybe it's a resource
+      put getNamedResource("PICT",pic1) into myPic1
+    end if
+  else
+    put getNamedResource("PICT",pic1) into myPic1
+  end if
+  if myPic1 = nil then return "Error: Couldn't find source Picture."
+  detachResource myPic1 -- now we can dispose it using killPicture
+  put myPic1@@.integerType[4] - myPic1@@.integerType[2] into hoch1
+  put myPic1@@.integerType[5] - myPic1@@.integerType[3] into breite1
+  SetRect picRect1,0,0,breite1,hoch1
+  if ":" is in pic2 then
+    put getPictFile(pic2) into myPic2
+    if myPic2 = nil then -- maybe it's a resource
+      put getNamedResource("PICT",pic2) into myPic2
+    end if
+  else
+    put getNamedResource("PICT",pic2) into myPic2
+  end if
+  if myPic2 = nil then
+    killPicture myPic1
+    return "Error: Couldn't find destination Picture."
+  end if
+  detachResource myPic2 -- now we can dispose it using killPicture
+  put myPic2@@.integerType[4] - myPic2@@.integerType[2] into hoch2
+  put myPic2@@.integerType[5] - myPic2@@.integerType[3] into breite2
+  SetRect picRect2,0,0,breite2,hoch2
+  put cardrect.right into breite
+  put cardrect.bottom into hoch
+  hideCursor
+  DrawPicture myPic1,picRect1
+  if mode = "Boxes" then
+    put (breite div 40) into hCount
+    put (hoch div 40) into vCount
+    if breite > ((breite div 40) * 40) then add 1 to hCount
+    if hoch > ((hoch div 40) * 40) then add 1 to vCount
+    put return & "1,1" into boxList
+    repeat with x = 1 to hCount
+      repeat with y = 1 to vCount
+        if x = 1 and y = 1 then next repeat
+        put return & x & "," & y after line random(number of lines of boxList) of boxList
+      end repeat
+    end repeat
+    delete line 1 of boxList
+    repeat with z = 1 to (hCount * vCount)
+      put item 1 of line z of boxList into x
+      put item 2 of line z of boxList into y
+      setRect effectRect,(x-1)*40,(y-1)*40,(x*40),(y*40)
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "rectOpen" then
+    put breite div 20 into x
+    put hoch div 20 into y
+    setRect effectRect, (cardRect.right - cardRect.left) div 2, (cardRect.bottom - cardRect.top) div 2, (cardRect.right - cardRect.left) div 2, (cardRect.bottom - cardRect.top) div 2
+    repeat until (effectRect.bottom - effectRect.top) >= (cardRect.bottom - cardRect.top)
+      insetRect effectRect,(x * -1),(y *-1)
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "rectClose" then
+    put breite div 20 into x
+    put hoch div 20 into y
+    put newRgn() into rgn1
+    if rgn1 = nil then
+      showCursor
+      return "Error: Not enough memory."
+    end if
+    put newRgn() into rgn2
+    if rgn2 = nil then
+      showCursor
+      return "Error: Not enough memory."
+    end if
+    setRect effectRect,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    repeat until emptyRect(effectRect)
+      rectRgn rgn1,effectRect
+      insetRect effectRect,x,y
+      rectRgn rgn2,effectRect
+      diffRgn rgn1,rgn2,rgn1
+      setClip rgn1
+      DrawPicture myPic2,picRect2
+      clipRect effectRect
+      DrawPicture myPic1,picRect1
+    end repeat
+    disposeRgn rgn1
+    disposeRgn rgn2
+  else if mode = "irisOpen" then
+    put breite div 20 into x
+    put hoch div 20 into y
+    setRect effectRect, (cardRect.right - cardRect.left) div 2, (cardRect.bottom - cardRect.top) div 2, (cardRect.right - cardRect.left) div 2, (cardRect.bottom - cardRect.top) div 2
+    put newRgn() into rgn2
+    if rgn2 = nil then
+      showCursor
+      return "Error: Not enough memory."
+    end if
+    repeat until (effectRect.bottom - effectRect.top) >= (cardRect.bottom - cardRect.top)
+      insetRect effectRect,(x * -1),(y *-1)
+      openRgn
+      frameOval effectRect
+      closeRgn rgn2
+      setClip rgn2
+      DrawPicture myPic2,picRect2
+    end repeat
+    disposeRgn rgn2
+  else if mode = "irisClose" then
+    put breite div 15 into x
+    put hoch div 15 into y
+    put newRgn() into rgn1
+    if rgn1 = nil then
+      showCursor
+      return "Error: Not enough memory."
+    end if
+    put newRgn() into rgn2
+    if rgn2 = nil then
+      showCursor
+      return "Error: Not enough memory."
+    end if
+    setRect effectRect,cardRect.left - (breite div 4), cardRect.top - (hoch div 4),cardRect.right + (breite div 4),cardRect.bottom + (hoch div 4)
+    repeat until emptyRect(effectRect)
+      openRgn
+      frameOval effectRect
+      closeRgn rgn1
+      insetRect effectRect,x,y
+      openRgn
+      frameOval effectRect
+      closeRgn rgn2
+      diffRgn rgn1,rgn2,rgn1
+      setClip rgn1
+      DrawPicture myPic2,picRect2
+      setClip rgn2
+      DrawPicture myPic1,picRect1
+    end repeat
+    disposeRgn rgn1
+    disposeRgn rgn2
+  else if mode = "scrollRight" then
+    put picRect2.longIntType[1] into effectRect.longIntType[1]
+    put picRect2.longIntType[2] into effectRect.longIntType[2]
+    offsetRect effectRect,(breite * -1),0
+    repeat (breite div 10)
+      offsetRect effectRect,10,0
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "scrollLeft" then
+    put picRect2.longIntType[1] into effectRect.longIntType[1]
+    put picRect2.longIntType[2] into effectRect.longIntType[2]
+    offsetRect effectRect,breite,0
+    repeat (breite div 10)
+      offsetRect effectRect,-10,0
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "scrollDown" then
+    put picRect2.longIntType[1] into effectRect.longIntType[1]
+    put picRect2.longIntType[2] into effectRect.longIntType[2]
+    offsetRect effectRect,0,(hoch * -1)
+    repeat (hoch div 10)
+      offsetRect effectRect,0,10
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "scrollUp" then
+    put picRect2.longIntType[1] into effectRect.longIntType[1]
+    put picRect2.longIntType[2] into effectRect.longIntType[2]
+    offsetRect effectRect,0,hoch
+    repeat (hoch div 10)
+      offsetRect effectRect,0,-10
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "pushRight" then
+    put picRect2.longIntType[1] into effectRect.longIntType[1]
+    put picRect2.longIntType[2] into effectRect.longIntType[2]
+    put picRect1.longIntType[1] into effectRect2.longIntType[1]
+    put picRect1.longIntType[2] into effectRect2.longIntType[2]
+    offsetRect effectRect,-breite,0
+    repeat (breite div 10)
+      offsetRect effectRect,10,0
+      offsetRect effectRect2,10,0
+      DrawPicture myPic1,effectRect2
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "pushLeft" then
+    put picRect2.longIntType[1] into effectRect.longIntType[1]
+    put picRect2.longIntType[2] into effectRect.longIntType[2]
+    put picRect1.longIntType[1] into effectRect2.longIntType[1]
+    put picRect1.longIntType[2] into effectRect2.longIntType[2]
+    offsetRect effectRect,breite,0
+    repeat (breite div 10)
+      offsetRect effectRect,-10,0
+      offsetRect effectRect2,-10,0
+      DrawPicture myPic1,effectRect2
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "pushDown" then
+    put picRect2.longIntType[1] into effectRect.longIntType[1]
+    put picRect2.longIntType[2] into effectRect.longIntType[2]
+    put picRect1.longIntType[1] into effectRect2.longIntType[1]
+    put picRect1.longIntType[2] into effectRect2.longIntType[2]
+    offsetRect effectRect,0,-hoch
+    repeat (hoch div 10)
+      offsetRect effectRect,0,10
+      offsetRect effectRect2,0,10
+      DrawPicture myPic1,effectRect2
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "pushUp" then
+    put picRect2.longIntType[1] into effectRect.longIntType[1]
+    put picRect2.longIntType[2] into effectRect.longIntType[2]
+    put picRect1.longIntType[1] into effectRect2.longIntType[1]
+    put picRect1.longIntType[2] into effectRect2.longIntType[2]
+    offsetRect effectRect,0,hoch
+    repeat (hoch div 10)
+      offsetRect effectRect,0,-10
+      offsetRect effectRect2,0,-10
+      DrawPicture myPic1,effectRect2
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "wipeRight" then
+    setRect effectRect,0,0,0,hoch
+    repeat (breite div 10)
+      add 10 to effectRect.integerType[4]
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "wipeLeft" then
+    setRect effectRect,breite,0,breite,hoch
+    repeat (breite div 10)
+      subtract 10 from effectRect.integerType[2]
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "wipeDown" then
+    setRect effectRect,0,0,breite,0
+    repeat (hoch div 10)
+      add 10 to effectRect.integerType[3]
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "wipeUp" then
+    setRect effectRect,0,hoch,breite,hoch
+    repeat (hoch div 10)
+      subtract 10 from effectRect.integerType[1]
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "stretchDown" then
+    setRect effectRect,0,0,breite,0
+    repeat (hoch div 15)
+      add 15 to effectRect.integerType[3]
+      clipRect effectRect
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "stretchUp" then
+    setRect effectRect,0,hoch,breite,hoch
+    repeat (hoch div 15)
+      subtract 15 from effectRect.integerType[1]
+      clipRect effectRect
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "stretchRight" then
+    setRect effectRect,0,0,0,hoch
+    repeat (breite div 15)
+      add 15 to effectRect.integerType[4]
+      clipRect effectRect
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "stretchLeft" then
+    setRect effectRect,breite,0,breite,hoch
+    repeat (breite div 15)
+      subtract 15 from effectRect.integerType[2]
+      clipRect effectRect
+      DrawPicture myPic2,effectRect
+    end repeat
+  else if mode = "shrinkDown" then
+    setRect effectRect,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    setRect effectRect2,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    repeat (hoch div 15)
+      add 15 to effectRect.top
+      put effectRect.top -1 into effectRect2.bottom
+      clipRect effectRect2
+      DrawPicture myPic2,picRect2
+      clipRect effectRect
+      DrawPicture myPic1,effectRect
+    end repeat
+  else if mode = "shrinkUp" then
+    setRect effectRect,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    setRect effectRect2,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    repeat (hoch div 15)
+      subtract 15 from effectRect.bottom
+      put effectRect.bottom +1 into effectRect2.top
+      clipRect effectRect2
+      DrawPicture myPic2,picRect2
+      clipRect effectRect
+      DrawPicture myPic1,effectRect
+    end repeat
+  else if mode = "shrinkRight" then
+    setRect effectRect,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    setRect effectRect2,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    repeat (breite div 15)
+      add 15 to effectRect.left
+      put effectRect.left -1 into effectRect2.right
+      clipRect effectRect2
+      DrawPicture myPic2,picRect2
+      clipRect effectRect
+      DrawPicture myPic1,effectRect
+    end repeat
+  else if mode = "shrinkLeft" then
+    setRect effectRect,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    setRect effectRect2,cardRect.left, cardRect.top,cardRect.right,cardRect.bottom
+    repeat (breite div 15)
+      subtract 15 from effectRect.right
+      put effectRect.right +1 into effectRect2.left
+      clipRect effectRect2
+      DrawPicture myPic2,picRect2
+      clipRect effectRect
+      DrawPicture myPic1,effectRect
+    end repeat
+  else if mode = "wipeBotRight" then
+    setRect effectRect,0,0,0,0
+    put breite div 45 into hDist
+    put hoch div 45 into vDist
+    repeat 45
+      add hDist to effectRect.right
+      add vDist to effectRect.bottom
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "wipeTopLeft" then
+    setRect effectRect,breite,hoch,breite,hoch
+    put breite div 45 into hDist
+    put hoch div 45 into vDist
+    repeat 45
+      subtract hDist from effectRect.left
+      subtract vDist from effectRect.top
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "wipeBotLeft" then
+    setRect effectRect,breite,0,breite,0
+    put breite div 45 into hDist
+    put hoch div 45 into vDist
+    repeat 45
+      subtract hDist from effectRect.left
+      add vDist to effectRect.bottom
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  else if mode = "wipeTopRight" then
+    setRect effectRect,0,hoch,0,hoch
+    put breite div 45 into hDist
+    put hoch div 45 into vDist
+    repeat 45
+      add hDist to effectRect.right
+      subtract vDist from effectRect.top
+      clipRect effectRect
+      DrawPicture myPic2,picRect2
+    end repeat
+  end if
+  clipRect cardRect
+  DrawPicture myPic2,picRect2
+  killPicture myPic2
+  killpicture myPic1
+  showCursor
+end transPicts
+
+function getPictFile myPath
+  put FSOpen(myPath,0,myRefNum) into err
+  if err = noErr then
+    put GetEOF(myRefNum,dataLength) into err
+    if err = noErr then
+      put SetFPos(myRefNum, fsFromStart,512) into err -- move past the 512-Byte header
+      subtract 512 from dataLength
+      put NewHandle(dataLength) into myPic
+      if err = noErr and myPic ≠ nil then
+        HLock myPic
+        put FSRead(myRefNum, dataLength,myPic@.ptrType) into err
+        HUnlock myPic
+        put FSClose(myRefNum) into err
+        if myPic ≠ nil then
+          return myPic
+        else
+          return nil
+        end if
+      else
+        return nil
+      end if
+    else
+      put FSClose(myRefNum) into err
+      return nil
+    end if
+  else
+    return nil
+  end if
+end getPictFile
+
+function noInteger nb
+  if nb = empty then return TRUE
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then return TRUE
+  end repeat
+  return FALSE
+end noInteger

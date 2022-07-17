@@ -1,0 +1,51 @@
+on ulisUpdate mode
+  if mode = "redraw" then
+    put the id of card window into winPtr
+    invalRect winPtr@.portRect
+  else
+    put newPtr(8) into box
+    put newPtr(8) into arect
+    global gUlis_UpdateSelRects
+    put gUlis_UpdateSelRects into selRecList
+    penMode patXOr
+    repeat with x = 1 to (number of lines of selRecList)
+      StrToRect (line x of selRecList),arect@
+      penPat gray
+      frameRect arect@
+      penPat black
+      put arect@.longIntType[1] into box@.longIntType[1]
+      put arect@.longIntType[1] into box@.longIntType[2]
+      add 3 to box@.right
+      add 3 to box@.bottom
+      subtract 3 from box@.left
+      subtract 3 from box@.top
+      paintRect box@
+      put arect@.longIntType[2] into box@.longIntType[1]
+      put arect@.longIntType[2] into box@.longIntType[2]
+      add 3 to box@.right
+      add 3 to box@.bottom
+      subtract 3 from box@.left
+      subtract 3 from box@.top
+      paintRect box@
+      put arect@.left into box@.left
+      put arect@.bottom into box@.top
+      put box@.longIntType[1] into box@.longIntType[2]
+      add 3 to box@.right
+      add 3 to box@.bottom
+      subtract 3 from box@.left
+      subtract 3 from box@.top
+      paintRect box@
+      put arect@.right into box@.left
+      put arect@.top into box@.top
+      put box@.longIntType[1] into box@.longIntType[2]
+      add 3 to box@.right
+      add 3 to box@.bottom
+      subtract 3 from box@.left
+      subtract 3 from box@.top
+      paintRect box@
+    end repeat
+    penMode patCopy
+    disposPtr arect
+    disposPtr box
+  end if
+end ulisUpdate

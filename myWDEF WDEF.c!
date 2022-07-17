@@ -1,0 +1,219 @@
+CodeResource "WDEF" 128
+
+pascal function myWDEF :L varCode:I, theWindow:P, nachricht:I, daten:L
+  if theWindow@.visible = TRUE then
+    if nachricht = wDraw then
+      if loWord(daten) = 0 then
+        draw_Frame varCode,theWindow,daten
+      else if loWord(daten) = wInGoAway then
+        -- draw_Close varCode,theWindow,daten
+      end if
+      return 0
+    else if nachricht = wHit then
+      return report_Hits(varCode,theWindow,daten)
+    else if nachricht = wCalcRgns then
+      calc_Rgns varCode,theWindow,daten
+      return 0
+    else if nachricht = wNew then
+    else if nachricht = wDispose then
+    else if nachricht = wGrow then
+      grow_Rect varCode,theWindow,daten
+      return 0
+    else if nachricht = wDrawGIcon then
+      grow_Box varCode,theWindow,daten
+      return 0
+    end if
+  else
+    return 0
+  end if
+end myWDEF
+
+on draw_Frame varCode,theWindow,daten
+  put newRgn() into shitRgn
+  diffRgn theWindow@.strucRgn,theWindow@.contRgn,shitRgn
+  eraseRgn shitRgn
+  disposeRgn shitRgn
+  getPort aPort
+  setPort theWindow
+  put newPtr(8) into myFrame
+  put newPtr(8) into tempFrame
+  put theWindow@.portRect.longIntType[1] into myFrame@.longIntType[1]
+  put theWindow@.portRect.longIntType[2] into myFrame@.longIntType[2]
+  localToGlobal myFrame@.longIntType[1]
+  localToGlobal myFrame@.longIntType[2]
+  setPort aPort
+  -- contents bounds
+  insetRect myFrame@,-1,-1
+  frameRect myFrame@
+  -- title bar pattern
+  put myFrame@.left +2 into tempFrame@.left
+  put myFrame@.right -2 into tempFrame@.right
+  put myFrame@.top -3 into tempFrame@.bottom
+  put tempFrame@.bottom -14 into tempFrame@.top
+  put getIndPattern(0,24) into myPat
+  penPat myPat@@
+  paintRect tempFrame@
+  penNormal
+  -- window border
+  insetRect myFrame@,-3,-3
+  subtract 17 from myFrame@.top
+  frameRect myFrame@
+  -- window shadows
+  moveTo myFrame@.right,myFrame@.top
+  lineTo myFrame@.right,myFrame@.bottom
+  moveTo myFrame@.left,myFrame@.bottom
+  lineTo myFrame@.right,myFrame@.bottom
+  -- close box
+  if theWindow@.goAwayFlag = TRUE then
+    put myFrame@.left +10 into tempFrame@.left 
+    put tempFrame@.left +13 +6 into tempFrame@.right
+    put myFrame@.top +4 -1 into tempFrame@.top
+    put tempFrame@.top +14 +1 into tempFrame@.bottom
+    eraseRect tempFrame@
+    add 3 to tempFrame@.left
+    subtract 3 from tempFrame@.right
+    add 1 to tempFrame@.top
+    subtract 1 from tempFrame@.bottom
+    frameRect tempFrame@
+  end if
+  disposHandle myPat
+  disposPtr tempFrame
+  disposPtr myFrame
+  grow_Box varCode,theWindow,daten
+end draw_Frame
+
+on calc_Rgns varCode,theWindow,daten
+  getPort aPort
+  setPort theWindow
+  put newPtr(8) into strucFrame
+  put newPtr(8) into contFrame
+  put theWindow@.portRect.longIntType[1] into strucFrame@.longIntType[1]
+  put theWindow@.portRect.longIntType[2] into strucFrame@.longIntType[2]
+  localToGlobal strucFrame@.longIntType[1]
+  localToGlobal strucFrame@.longIntType[2]
+  put strucFrame@.longIntType[1] into contFrame@.longIntType[1]
+  put strucFrame@.longIntType[2] into contFrame@.longIntType[2]
+  setPort aPort
+  insetRect strucFrame@,-4,-4
+  subtract 17 from strucFrame@.top
+  add 1 to strucFrame@.right
+  add 1 to strucFrame@.bottom
+  rectRgn theWindow@.strucRgn,strucFrame@
+  rectRgn theWindow@.contRgn,contFrame@
+  put newRgn() into growBoxRgn
+  put contFrame@.right -15 into contFrame@.left
+  put contFrame@.bottom -15 into contFrame@.top
+  rectRgn growBoxRgn,contFrame@
+  diffRgn theWindow@.contRgn,growBoxRgn,theWindow@.contRgn
+  disposeRgn growBoxRgn
+  disposPtr strucFrame
+  disposPtr contFrame
+end calc_Rgns
+
+function report_Hits varCode,theWindow,daten
+  put wNoHit into retVal
+  getPort aPort
+  setPort theWindow
+  put newPtr(8) into myFrame
+  put newPtr(8) into tempFrame
+  put theWindow@.portRect.longIntType[1] into myFrame@.longIntType[1]
+  put theWindow@.portRect.longIntType[2] into myFrame@.longIntType[2]
+  localToGlobal myFrame@.longIntType[1]
+  localToGlobal myFrame@.longIntType[2]
+  setPort aPort
+  insetRect myFrame@,-1,-1
+  put myFrame@.right -15 into tempFrame@.left
+  put myFrame@.right into tempFrame@.right
+  put myFrame@.bottom -15 into tempFrame@.top
+  put myFrame@.bottom into tempFrame@.bottom
+  if ptInRect(daten,tempFrame@) then
+    put wInGrow into retVal
+  else if ptInRect(daten,myFrame@) then
+    put wInContent into retVal
+  end if
+  put myFrame@.left into tempFrame@.left
+  put myFrame@.right into tempFrame@.right
+  put myFrame@.top +1 into tempFrame@.bottom
+  put tempFrame@.bottom -18 into tempFrame@.top
+  if ptInRect(daten,tempFrame@) then
+    put wInDrag into retVal
+  end if
+  if theWindow@.goAwayFlag = TRUE then
+    put myFrame@.left +10 -3 into tempFrame@.left 
+    put tempFrame@.left +13 +6 -3 into tempFrame@.right
+    put myFrame@.top +4 -1 -3 into tempFrame@.top
+    put tempFrame@.top +14 +1 -3 into tempFrame@.bottom
+    if ptInRect(daten,tempFrame@) then
+      put wInGoAway into retVal
+    end if
+  end if
+  disposPtr tempFrame
+  disposPtr myFrame
+  return retVal
+end report_Hits
+
+on grow_Box varCode,theWindow,daten
+  put newPtr(8) into myFrame
+  getPort aPort
+  setPort theWindow
+  put theWindow@.portRect.longIntType[1] into myFrame@.longIntType[1]
+  put theWindow@.portRect.longIntType[2] into myFrame@.longIntType[2]
+  localToGlobal myFrame@.longIntType[1]
+  localToGlobal myFrame@.longIntType[2]
+  setPort aPort
+  insetRect myFrame@,-1,-1
+  put myFrame@.right -16 into myFrame@.left
+  put myFrame@.right +2 into myFrame@.right
+  put myFrame@.bottom -16 into myFrame@.top
+  put myFrame@.bottom +2 into myFrame@.bottom
+  eraseRect myFrame@
+  moveTo myFrame@.left,myFrame@.bottom -3
+  lineTo myFrame@.left,myFrame@.top
+  lineTo myFrame@.right -3,myFrame@.top
+  add 3 to myFrame@.left
+  add 3 to myFrame@.top
+  subtract 7 from myFrame@.right
+  subtract 7 from myFrame@.bottom
+  frameRect myFrame@
+  offsetRect myFrame@,4,4
+  subtract 1 from myFrame@.left
+  subtract 1 from myFrame@.top
+  eraseRect myFrame@
+  frameRect myFrame@
+  disposHandle myPat
+  disposPtr myFrame
+  penNormal
+end grow_Box
+
+on grow_Rect varCode,theWindow,daten
+  put newPtr(8) into myFrame
+  put newPtr(8) into tempFrame
+  put daten@.longIntType[1] into myFrame@.longIntType[1]
+  put daten@.longIntType[2] into myFrame@.longIntType[2]
+  insetRect myFrame@,-1,-1
+  frameRect myFrame@
+  subtract 17 from myFrame@.top
+  moveTo myFrame@.left +1,myFrame@.bottom -16
+  lineTo myFrame@.right -1,myFrame@.bottom -16
+  moveTo myFrame@.right -16,myFrame@.top + 18
+  lineTo myFrame@.right -16,myFrame@.bottom -1
+  insetRect myFrame@,-3,-3
+  frameRect myFrame@
+  disposPtr tempFrame
+  disposPtr myFrame
+end grow_Rect
+
+function getIndPattern resID,index
+  put getResource("PAT#",resID) into thePat
+  HLock thePat
+  put thePat@ into myPtr
+  add 2 to myPtr
+  repeat with x = 1 to (index-1)
+    add 8 to myPtr
+  end repeat
+  put ptrToHand(myPtr,singlePat,8) into myErr
+  HUnlock thePat
+  return singlePat
+end getIndPattern
+
+

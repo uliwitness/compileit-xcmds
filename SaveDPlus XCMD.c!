@@ -1,0 +1,37 @@
+on SaveDPlus path,resID,name,data
+  if path = "?" then
+    return "SaveDPlus <path>,<resID>,<name>,<data>"
+  else if path = "!" then
+    return "SaveDPlus 1.0, © 1996 by Uli Kusterer, all rights rsvd."
+  end if
+  put OpenResFile(path) into myRefNum
+  if myRefNum <= 0 then
+    return "ERROR: Couldn't open file," && myRefNum
+  end if
+  put (number of lines of data -2) into itmCount
+  put 6 +( 8* itmCount ) into groesse
+  put NewHandle( groesse ) into myRes
+  if myRes = NIL or MemError() <> 0 then
+    CloseResFile myRefNum
+    return "ERROR: Couldn't find memory."
+  end if
+  put line 1 of data into myRes@@.integerType[1]
+  put line 2 of data into myRes@@.integerType[2]
+  put itmCount into myRes@@.integerType[3]
+  repeat with x = 1 to itmCount
+    HandlePokeWord item 1 of line x+2 of data,myRes,6 +((x-1)*8)
+    HandlePokeWord item 2 of line x+2 of data,myRes,6 +2 +((x-1)*8)
+    HandlePokeLong item 3 of line x+2 of data,myRes,6 +4 +((x-1)*8)
+  end repeat
+  put GetResource("DD++",resID) into otherRes
+  if otherRes <> NIL then
+    RmveResource otherRes
+  end if
+  AddResource myRes,"DD++",resID,name
+  if ResError() ≠ 0 then
+    CloseResFile myRefNum
+    DisposHandle myRes
+    return "ERROR: Couldn't create resource."
+  end if
+  CloseResFile myRefNum
+end SaveDPlus

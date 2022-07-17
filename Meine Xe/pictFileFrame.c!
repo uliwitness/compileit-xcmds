@@ -1,0 +1,47 @@
+global myPic:picHandle
+global dataLength:longInt
+global err:OSErr
+
+function pictFileFrame myPath
+  if myPath = "?" then return help()
+  if myPath = "!" then return copyright()
+  put FSOpen(myPath,0,myRefNum) into err
+  if err = noErr then
+    put GetEOF(myRefNum,dataLength) into err
+    if err = noErr then
+      put SetFPos(myRefNum, fsFromStart,512) into err -- move past the 512-Byte header
+      subtract 512 from dataLength
+      put NewHandle(dataLength) into myPic
+      if err = noErr and myPic ≠ nil then
+        HLock myPic
+        put FSRead(myRefNum, dataLength,myPic@.ptrType) into err
+        HUnlock myPic
+        put FSClose(myRefNum) into err
+        if myPic ≠ nil then
+          put myPic@@.integerType[4] - myPic@@.integerType[2] into hoch
+          put myPic@@.integerType[5] - myPic@@.integerType[3] into breite
+          KillPicture myPic
+          return ("0,0," & breite & "," & hoch)
+        else
+          put FSClose(myRefNum) into err
+          return "Error: Couldn't allocate memory for picture."
+        end if
+      else
+        return "Error: Couldn't get PICT file."
+      end if
+    else
+      put FSClose(myRefNum) into err
+      return "Error: Couldn't get file size."
+    end if
+  else
+    return "Error: Couldn't open file."
+  end if
+end pictFileFrame
+
+function help
+  return "put|get pictFileFrame (<file path>)"
+end help
+
+function copyright
+  return "1.0, © 1995 by Uli Kusterer, all rights reserved."
+end copyright

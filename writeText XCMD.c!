@@ -1,0 +1,54 @@
+on writeText txID,txName,str,mode
+  if txID = "?" then return syntax()
+  if txID = "!" then return copyright()
+  if not isInteger(txID) then return "Error: Resource ID must be an integer."
+  if getResource("TEXT",txID) ≠ nil and mode = FALSE then
+    return "Error: Duplicate resource ID."
+  else if getNamedResource("TEXT",txName) ≠ nil and mode = FALSE then
+    return "Error: Duplicate resource Name."
+  else if getResource("TEXT",txID) ≠ nil and mode = "unique" then
+    put UniqueID("TEXT") into txID
+  else if getNamedResource("TEXT",txName) ≠ nil and mode = "Unique" then
+    return "Error: Duplicate resource Name."
+  end if
+  put length(str) into strLen
+  put charsHandle(str) into theStr
+  put getResource("TEXT",txID) into textHandle
+  if textHandle = nil then
+    put getNamedResource("TEXT",txName) into textHandle
+    if textHandle = nil then
+      put newHandle(strLen +1) into textHandle
+      BlockMove theStr@, textHandle@, strLen
+      put numToChar(0) into textHandle@@.chartype[strLen]
+      AddResource textHandle,"TEXT",txID,txName
+    else
+      SetHandleSize textHandle,strLen+1
+      BlockMove theStr@, textHandle@, strLen
+      put numToChar(0) into textHandle@@.chartype[strLen]
+      ChangedResource resHdl
+    end if
+  else
+    SetHandleSize textHandle,strLen+1
+    BlockMove theStr@, textHandle@, strLen
+    put numToChar(0) into textHandle@@.chartype[strLen]
+    ChangedResource resHdl
+  end if
+end writeText
+
+function syntax
+  return "writeText <ID>,<name>,<string>,<TRUE|FALSE|Unique>"
+end syntax
+
+function copyright
+  return "writeText 1.0, © 1995 by Uli Kusterer, all rights reserved."
+end copyright
+
+function isInteger nb
+  if nb = empty then return FALSE
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then
+      return FALSE
+    end if
+  end repeat
+  return TRUE
+end isInteger

@@ -1,0 +1,100 @@
+GLOBAL arect:R, myEvent:R[16]
+
+-- Requires DLOG and DITL id 2090 with the following items:
+-- #1 OK, #2 Cancel, #3-7 (Radios) and 1 staticText with
+-- placeholder "^0" to hold the prompt.
+
+function choiceDialog str,tle,c1,c2
+  if str = "?" then
+    return "put|get choiceDialog(<prompt>,<title>,<choice1>,...,<choice5>)"
+  else if str = "!" then
+    return "choiceDialog 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  hiliteWindow frontDocWindow(),FALSE
+  put getNewDialog(2090, NIL, pointer(-1)) into dlogPtr
+  if dlogPtr = NIL then
+    return "Error: Resources are missing."
+  end if
+  setWTitle dlogPtr,tle
+  paramText str,"","",""
+  GetDItem dlogPtr,3,itemType,itemHandle,arect
+  put 3 into lastItem -- remember this is selected.
+  SetCtlValue itemHandle,1 -- activate first radio
+  GetDItem dlogPtr,3,itemType,itemHandle,arect
+  SetCTitle itemHandle,c1
+  GetDItem dlogPtr,4,itemType,itemHandle,arect
+  SetCTitle itemHandle,c2
+  GetDItem dlogPtr,5,itemType,itemHandle,arect
+  if paramCount() ≥ 5 then
+    SetCTitle itemHandle,param(5)
+  else
+    HideDItem dlogPtr,5
+  end if
+  GetDItem dlogPtr,6,itemType,itemHandle,arect
+  if paramCount() ≥ 6 then
+    SetCTitle itemHandle,param(6)
+  else
+    HideDItem dlogPtr,6
+  end if
+  GetDItem dlogPtr,7,itemType,itemHandle,arect
+  if paramCount() ≥ 7 then
+    SetCTitle itemHandle,param(7)
+  else
+    HideDItem dlogPtr,7
+  end if
+  showWindow dlogPtr
+  setCursor arrow
+  setRect arect,-32000,-32000,32000,32000
+  repeat
+    put waitNextEvent(everyEvent, myEvent, 15, NIL) into haveEvent
+    if haveEvent then
+      if isDialogEvent(myEvent) then
+        put dialogSelect(myEvent,dlogPtr,itemHit) into haveEvent
+        if haveEvent then
+          if myEvent.what = mouseDown then
+            if itemHit = 1 then
+              put TRUE into wasOk
+              exit repeat
+            else if itemHit = 2 then
+              put FALSE into wasOk
+              exit repeat
+            else if itemHit > 2 and itemHit < 8 then
+              GetDItem dlogPtr,lastItem,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+              GetDItem dlogPtr,itemHit,itemType,itemHandle,arect
+              SetCtlValue itemHandle,1
+              put itemHit into lastItem
+            end if
+          end if
+        end if
+      else
+        if myEvent.what = mouseDown then
+          put findWindow(myEvent.where,thisWindow) into clickPlace
+          if thisWindow = dlogPtr and clickPlace = inDrag then
+            setRect arect,-32000,-32000,32000,32000
+            dragWindow dlogPtr, myEvent.where, arect
+          else
+            sysbeep 10
+          end if
+        else if myEvent.what = updateEvt then
+          sendHcEvent myEvent
+        else if myEvent.what = mouseDown then
+          sysbeep 10
+        else if myEvent.what = keyDown then
+          sysbeep 10
+        end if
+      end if
+    else
+      if isDialogEvent(myEvent) then
+        put dialogSelect(myEvent,dlogPtr,itemHit) into gotEvent
+      end if
+    end if
+  end repeat
+  disposDialog dlogPtr
+  hiliteWindow frontDocWindow(),TRUE
+  if wasOk = TRUE then
+    return lastItem-2
+  else
+    return "cancel"
+  end if
+end choiceDialog

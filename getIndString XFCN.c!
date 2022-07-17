@@ -1,0 +1,32 @@
+function getIndString path,resID,index
+  if path = "?" then
+    return "put|get getIndString(<path>,<resID>,<index>)"
+  else if path = "!" then
+    return "getIndString 1.0b, © 1995-96 by Uli Kusterer, all rights rsvd."
+  end if
+  put OpenResFile(path) into myRefNum
+  if myRefNum <= 0 then
+    return "ERROR: Couldn't open file," && myRefNum
+  end if
+  put GetResource("STR#",resID) into myRes
+  if myRes = NIL then
+    CloseResFile myRefNum
+    return "ERROR: Couldn't get resource."
+  end if
+  put myRes@.ptrType into aptr
+  put index-1 into counter
+  if counter >= aptr@.integertype or counter < 0 then
+    CloseResFile myRefNum
+    return "ERROR: Invalid index."
+  end if
+  add 2 to aptr
+  HLock myRes
+  repeat while counter > 0
+    add chartonum(aptr@.charType)+1 to aptr
+    subtract 1 from counter
+  end repeat
+  put aptr@.str255type into theString
+  HUnlock myRes
+  CloseResFile myRefNum
+  return theString
+end getIndString

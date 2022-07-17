@@ -1,0 +1,46 @@
+global rect:R[8] -- rect will default to 0,0,0,0 ($00000000 $00000000)
+on ImageCards divFactor
+  getPort oldPort
+  put newPtr(512) into newPort
+  openCPort newPort
+  setPort oldPort
+  put oldPort@.portrect.topLeft into rect.topLeft
+  put oldPort@.portrect.botRight into rect.botRight
+  localtoGlobal rect.topLeft
+  localToGlobal rect.botRight
+  setPort newPort
+  movePortTo rect.topLeft.integerType[1],rect.topLeft.integerType[2]
+  if divFactor="" or divFactor=0 or divFactor is not a number then
+    setRect rect,0,0,64,43
+  else
+    -- calculate pict rect.
+    --   how big is the card window?
+    --     remember rects are backwards points.
+    setRect rect,0,0,the round of ((oldPort@.portRect.botRight.integerType[2]-oldPort@.portRect.topLeft.integerType[2])/divFactor),the round of ((oldPort@.portRect.botRight.integerType[1]-oldPort@.portRect.topLeft.integerType[1])/divFactor)
+  end if
+  setPort newPort
+  repeat the number of cds
+    SendCardMessage ("Doingcard" && the number of this card)
+    if commandPeriod() then exit repeat
+    setPort newPort
+    copyBits oldPort@.PortBits,newPort@.portbits,oldPort@.portRect,rect,ditherCopy,NIL
+    put openPicture(rect) into myPict
+    copyBits newPort@.portBits,newPort@.portBits,rect,rect,0,NIL
+    closePicture
+    get GetNamedResource("PICT",the id of this card)
+    if it≠0 then
+      rmveResource it
+      disposHandle it
+    end if
+    AddResource myPict,"PICT",uniqueID("PICT"),the id of this card
+    WriteResource myPict
+    releaseResource myPict
+    setPort oldPort
+    go next card
+    if value("the lockScreen") then unlock screen
+  end repeat
+  UpdateResFile curresFile()
+  closeCPort newPort
+  setPort oldPort
+  disposPtr newPort
+end ImageCards

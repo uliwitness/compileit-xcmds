@@ -1,0 +1,8 @@
+on setMDEF mnuID,num
+  put getMHandle(mnuID+0) into myMenu
+  if myMenu = NIL then return "Error: Couldn't get menu."
+  put GetResource("MDEF",num+0) into myMDEF
+  if myMDEF = NIL then return "Error: Couldn't get MDEF."
+  put myMDEF into myMenu@@.menuProc
+  CalcMenuSize myMenu
+end setMDEF

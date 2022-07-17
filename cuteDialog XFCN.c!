@@ -1,0 +1,243 @@
+GLOBAL arect:R, myEvent:R[16]
+
+function cuteDialog mode,wnam,resId,str
+  if mode = "getEvt" or mode = "E" or mode = "close" or mode = "C" or¬
+  mode = "setText" or mode = "T" or mode = "setVisible" or mode = "V" or¬
+  mode = "setState" or mode = "S" or mode = "getState" or mode = "GS" or¬
+  mode = "getText" or mode = "GT" or mode = "setName" or mode = "NA" or¬
+  mode = "getName" or mode = "GN" or mode = "setRect" or mode = "R" or¬
+  mode = "getRect" or mode = "GR" or mode = "setEnabled" or mode = "EN" or¬
+  mode = "setSelItem" or mode = "getSelItem" then
+    put (the id of window wnam)+0 into winPtr
+    if winPtr@.windowKind ≠ dialogKind then
+      return "Error: Window passed must be a dialog."
+    end if
+  end if
+  if mode = "?" then
+    return "put|get cuteDialog(<mode>,<windName>[,<resID|itemNo>[,<value>]])"
+  else if mode = "!" then
+    return "cuteDialog 1.0.2, © 1995-99 by M. Uli Kusterer, all rights reserved."
+  else if mode = "new" or mode = "N" then
+    put getNewDialog(resId+0, NIL, pointer(-1)) into winPtr
+    if winPtr = NIL then return "Error: Couldn't create window."
+    setWTitle winPtr,wnam
+    showWindow winPtr
+    return empty
+  else if mode = "getEvt" or mode = "E" then
+    return checkEvt(winPtr)
+  else if mode = "close" or mode = "C" then
+    disposDialog winPtr
+  else if mode = "setText" or mode = "T" then
+    return setText(winPtr,resID+0,str)
+  else if mode = "setVisible" or mode = "V" then
+    return setVis(winPtr,resID+0,str)
+  else if mode = "setState" or mode = "S" then
+    return setState(winPtr,resID+0,str+0)
+  else if mode = "getState" or mode = "GS" then
+    return getState(winPtr,resId+0)
+  else if mode = "getText" or mode = "GT" then
+    return getText(winPtr,resId+0)
+  else if mode = "getRect" or mode = "GR" then
+    return getFrame(winPtr,resId+0)
+  else if mode = "setRect" or mode = "R" then
+    return setFrame(winPtr,resId+0,str)
+  else if mode = "getName" or mode = "GN" then
+    return getName(winPtr,resId+0)
+  else if mode = "setSelItem" then
+    return setSelItem(winPtr,resId+0)
+  else if mode = "getSelItem" then
+    return getSelItem(winPtr)
+  else if mode = "setName" or mode = "NA" then
+    return setName(winPtr,resId+0,str)
+  else if mode = "setEnabled" or mode = "EN" then
+    return setEnabled(winPtr,resId+0,str)
+  else
+    return "Error: Unrecognized mode."
+  end if
+end cuteDialog
+
+function setText winPtr,theItem,theValue
+  setPort winPtr
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemType = 8 or itemType = 16 or itemType = 136 or itemType = 144 then
+    SetIText itemHandle,theValue
+    InvalRect arect
+  else
+    return "Error: Can't set that item."
+  end if
+end setText
+
+function setName winPtr,theItem,theValue
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬
+  itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then
+    SetCTitle itemHandle,theValue
+    Draw1Control itemHandle
+  else
+    return "Error: Can't set that item."
+  end if
+end setName
+
+function setFrame winPtr,theItem,theValue
+  setPort winPtr
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemHandle ≠ nil then
+    StrToRect theValue,arect
+    SetDItem winPtr,theItem,itemType,itemHandle,arect
+    if (itemType > 3 and itemType < 7) or (itemType > 131 and itemType < 135) then
+      hideControl itemHandle
+      moveControl itemHandle, arect.left, arect.top
+      sizeControl itemHandle, arect.right - arect.left, arect.bottom - arect.top
+      showControl itemHandle
+    end if
+    invalRect arect
+  else
+    return "Error: Can't set that item."
+  end if
+end setFrame
+
+function setEnabled winPtr,theItem,theValue
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬
+  itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then
+    if theValue = TRUE then
+      put 0 into newVal
+    else
+      put 255 into newVal
+    end if
+    HiliteControl itemHandle,newVal
+    Draw1Control itemHandle
+  else
+    return "Error: Can't set that item."
+  end if
+end setEnabled
+
+function setSelItem winPtr,itemNo
+  getDItem winPtr,itemNo,itemKind,itemHandle,arect
+  if itemKind = editText or itemKind = editText +128 then
+    --put winPtr@.textH into myTEHandle
+    --TEDeactivate myTEHandle
+    SelIText winPtr,itemNo,0,32767
+    --TEActivate myTEHandle
+  else
+    return "Error: Can't set that item."
+  end if
+end setSelItem
+
+function getSelItem winPtr
+  put winPtr@.editField into theItem
+  return theItem +1
+end getSelItem
+
+function getName winPtr,theItem
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then
+    GetCTitle itemHandle,theValue
+    return theValue
+  else
+    return "Error: Can't get that item."
+  end if
+end getName
+
+function getFrame winPtr,theItem
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemHandle ≠ nil then
+    RectToStr arect,str
+    return str
+  else
+    return "Error: Can't get that item."
+  end if
+end getFrame
+
+function getText winPtr,theItem
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemType = 8 or itemType = 16 or itemType = 136 or itemType = 144 then
+    GetIText itemHandle,theValue
+    return theValue
+  else
+    return "Error: Can't get that item."
+  end if
+end getText
+
+function setVis winPtr,theItem,theValue
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemHandle ≠ nil then -- gibt's das Control überhaupt?
+    if theValue = TRUE then
+      ShowDItem winPtr,theItem
+    else
+      HideDItem winPtr,theItem
+    end if
+  else
+    return "Error: Can't set that item."
+  end if
+end setVis
+
+function setState winPtr,theItem,theValue
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬
+  itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then
+    SetCtlValue itemHandle,theValue
+    Draw1Control itemHandle
+  else
+    return "Error: Can't set that item."
+  end if
+end setState
+
+function getState winPtr,theItem
+  GetDItem winPtr,theItem,itemType,itemHandle,arect
+  if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then
+    return GetCtlValue(itemHandle)
+  else
+    return "Error: Can't get that item."
+  end if
+end getState
+
+function checkEvt dlogPtr
+  setCursor arrow
+  if frontWindow() ≠ dlogPtr then
+    selectWindow dlogPtr
+  end if
+  setRect arect,-32000,-32000,32000,32000
+  put waitNextEvent(everyEvent, myEvent, 15, NIL) into haveEvent
+  if haveEvent then
+    if isDialogEvent(myEvent) then
+      put dialogSelect(myEvent,dlogPtr,itemHit) into haveEvent
+      if haveEvent then
+        if myEvent.what = mouseDown then
+          return "mouseDown," & itemHit
+        else if myEvent.what = keyDown or myEvent.what = autoKey then
+          return "keyDown," & itemHit
+        end if
+      end if
+    else
+      if myEvent.what = mouseDown then
+        put findWindow(myEvent.where,thisWindow) into clickPlace
+        if thisWindow = dlogPtr and clickPlace = inDrag then
+          setRect arect,-32000,-32000,32000,32000
+          dragWindow dlogPtr, myEvent.where, arect
+          return "moveWindow"
+        else if clickPlace = inMenuBar then
+          sendHcEvent myEvent
+          return "idle"
+        else
+          sysbeep 10
+          return "idle"
+        end if
+      else if myEvent.what = updateEvt then
+        sendHcEvent myEvent
+        return "update"
+      else if myEvent.what = mouseDown then
+        sysbeep 10
+        return "idle"
+      else if myEvent.what = keyDown then
+        sysbeep 10
+        return "idle"
+      end if
+    end if
+  else
+    if myEvent.what = nullEvt then
+      put dialogSelect(myEvent,dlogPtr,itemHit) into gotEvent
+    end if
+    return "idle"
+  end if
+end checkEvt

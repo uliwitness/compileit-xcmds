@@ -1,0 +1,27 @@
+global myPic:picHandle
+
+function pictFrame nameOrID
+  if nameOrID = "?" then return help()
+  if nameOrID = "!" then return copyright()
+  if nameOrID is a integer then
+    put GetPicture(nameOrID) into myPic
+  else
+    put GetNamedResource("PICT",nameOrID) into myPic
+  end if
+  if myPic ≠ nil then
+    put myPic@@.integerType[4] - myPic@@.integerType[2] into hoch
+    put myPic@@.integerType[5] - myPic@@.integerType[3] into breite
+    ReleaseResource myPic
+    return ("0,0," & breite & "," & hoch)
+  else
+    return "Error: Couldn't get PICT resource."
+  end if
+end pictFrame
+
+function help
+  return "put|get pictFrame (<pictName|pictID>)"
+end help
+
+function copyright
+  return "1.0, © 1995 by Uli Kusterer, all rights reserved."
+end copyright

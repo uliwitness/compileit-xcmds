@@ -1,0 +1,29 @@
+on importCField theID,resID,fPath
+  if theID = "?" then
+    return "importCField <fldID>,<resID>,<filePath>"
+  else if theID = "!" then
+    return "importCField 1.0, © 1996 by Uli Kusterer, all rights reserved."
+  end if
+  put openResFile(fPath) into myRefNum
+  if resError() ≠ 0 then
+    return "ERROR: Couldn't open file."
+  end if
+  useResFile myRefNum
+  put getResource("TEXT",resID) into myTxHandle
+  if myTxHandle = NIL then
+    return "Error: Couldn't read Text."
+  end if
+  put getResource("styl",resID) into myStylHandle
+  if myStylHandle = NIL then
+    return "Error: Couldn't read Styles."
+  end if
+  HLock myTxHandle
+  put getFieldTE(TRUE,theID,0,"") into myTEHandle
+  put getHandleSize(myTxHandle) into theLength
+  TESetText myTxHandle@,theLength,myTEHandle
+  HUnlock myTxHandle
+  SetStylScrap 0,theLength,myStylHandle,FALSE,myTEHandle
+  setFieldTE TRUE,theID,0,"",myTEHandle
+  TEDispose myTEHandle
+  closeResFile myRefNum
+end importCField

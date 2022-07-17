@@ -1,0 +1,17 @@
+-- ©1992 Heizer Software. All Rights Reserved.
+-- Registered users of CompileIt! may freely use this code for any purpose they choose.
+
+-- Change the text style of all characters in a HyperCard 2.x field to plain. FieldID is the id number of the field and cardfldFlag is a boolean (true = card field, false= bg field).
+
+GLOBAL theStyle:Record[12]
+on ClearStyle fieldID,cardfldFlag
+  if cardfldFlag is not "true" then put false into cdFlag else put true into cdFlag
+  put GetFieldTE(cdFlag,fieldID,0,empty) into TEHandle
+  if TEHandle is nil then exit ClearStyle
+  TEGetStyle 1,theStyle,dummy1,dummy2,TEHandle
+  put 0 into theStyle.integerType[2]
+  TESetSelect 0,GetHandleSize(TEGetText(TEHandle)),TEHandle
+  TESetStyle 2,theStyle,false,TEHandle
+  SetFieldTE cdFlag,fieldID,0,empty,TEHandle
+  disposHandle TEHandle
+end ClearStyle

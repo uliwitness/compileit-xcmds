@@ -1,0 +1,27 @@
+function getDPlus path,resID
+  if path = "?" then
+    return "put|get getDPlus(<path>,<resID>)"
+  else if path = "!" then
+    return "getDPlus 1.0, © 1996 by Uli Kusterer, all rights rsvd."
+  end if
+  put OpenResFile(path) into myRefNum
+  if myRefNum <= 0 then
+    return "ERROR: Couldn't open file," && myRefNum
+  end if
+  put GetResource("DD++",resID) into myRes
+  if myRes = NIL then
+    CloseResFile myRefNum
+    return "ERROR: Couldn't get resource."
+  end if
+  put "" into daten
+  put myRes@@.integerType[1] into line 1 of daten
+  put myRes@@.integerType[2] into line 2 of daten
+  put myRes@@.integerType[3] into itmCount
+  repeat with x = 1 to itmCount
+    put HandlePeekWord( myRes,6 +((x-1)*8) ) into item 1 of line x+2 of daten
+    put HandlePeekWord( myRes,6 +2 +((x-1)*8) ) into item 2 of line x+2 of daten
+    put HandlePeekLong( myRes,6 +4 +((x-1)*8) ) into item 3 of line x+2 of daten
+  end repeat
+  CloseResFile myRefNum
+  return daten
+end getDPlus

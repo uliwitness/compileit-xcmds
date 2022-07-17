@@ -1,0 +1,199 @@
+CodeResource "LDEF" 700
+
+RecordOffset listPort:P @ 8
+
+pascal on Styled nachricht:I, ausgewaehlt:B, @zellenRect:R,¬
+  dieZelle:L, inhaltOffs:I, inhaltLen:I, myList:P
+  if nachricht = 0 then
+    -- oh jeh!
+  else if nachricht = 1 then
+    malen myList,ausgewaehlt,zellenRect,dieZelle,inhaltLen
+  else if nachricht = 2 then
+    auswahl myList,ausgewaehlt,zellenRect,dieZelle,inhaltLen
+  else if nachricht = 3 then
+    -- oh jeh-er!
+  else
+    sysbeep 10
+  end if
+end Styled
+
+on malen myList,ausgewaehlt,zellenRect,theCell,inhaltLen
+  put newPtr(8) into fData
+  put newPtr(8) into tempRect
+  put newRgn() into svClip
+  getPort aPort
+  setPort myList@@.listPort
+  getClip svClip
+  clipRect zellenRect@
+  eraseRect zellenRect@
+  put "x" into myStr
+  put charsHandle(myStr) into myData
+  setHandleSize myData,inhaltLen
+  HLock myData
+  LGetCell myData@,inhaltLen,theCell,myList
+  HUnlock myData
+  GetFontInfo fData@
+  repeat with x = 1 to (number of lines of myStr)
+    put (x-1) * (fData@.top + fData@.left +fData@.right) into newLN
+    put (line x of myStr) into theTx
+    if char 1 of theTx = "-" then
+      moveTo zellenRect@.left +1,¬
+      zellenRect@.top +(fData@.top div 2) +newLN
+      lineTo zellenRect@.right -1,¬
+      zellenRect@.top +(fData@.top div 2) +newLN
+    else if char 1 of theTx = "(" and char 2 of theTx = "-" then
+      penPat gray
+      moveTo zellenRect@.left +1,¬
+      zellenRect@.top +(fData@.top div 2) +newLN
+      lineTo zellenRect@.right -1,¬
+      zellenRect@.top +(fData@.top div 2) +newLN
+      penPat black
+    else
+      put zellenRect@.left +fData@.bottom into tempRect@.left
+      put zellenRect@.top into tempRect@.top
+      put zellenRect@.right -fData@.bottom into tempRect@.right
+      put zellenRect@.bottom into tempRect@.bottom
+      clipRect tempRect@
+      if char 1 of theTx = "(" then
+        delete char 1 of theTx
+        put TRUE into isDisabled
+      else
+        put FALSE into isDisabled
+      end if
+      moveTo zellenRect@.left +1 +fData@.bottom,¬
+      zellenRect@.top +fData@.top +newLN
+      put 0 into tFace
+      put charPos("<B",theTx) into cPos
+      if cPos ≠ 0 then
+        add 1 to tFace
+        delete char cPos to cPos+1 of theTx
+      end if
+      put charPos("<I",theTx) into cPos
+      if cPos ≠ 0 then
+        add 2 to tFace
+        delete char cPos to cPos+1 of theTx
+      end if
+      put charPos("<U",theTx) into cPos
+      if cPos ≠ 0 then
+        add 4 to tFace
+        delete char cPos to cPos+1 of theTx
+      end if
+      put charPos("<O",theTx) into cPos
+      if cPos ≠ 0 then
+        add 8 to tFace
+        delete char cPos to cPos+1 of theTx
+      end if
+      put charPos("<S",theTx) into cPos
+      if cPos ≠ 0 then
+        add 16 to tFace
+        delete char cPos to cPos+1 of theTx
+      end if
+      put charPos("<C",theTx) into cPos
+      if cPos ≠ 0 then
+        add 32 to tFace
+        delete char cPos to cPos+1 of theTx
+      end if
+      put charPos("<E",theTx) into cPos
+      if cPos ≠ 0 then
+        add 64 to tFace
+        delete char cPos to cPos+1 of theTx
+      end if
+      put charPos("!",theTx) into cPos
+      if cPos ≠ 0 then
+        put char (cPos+1) of theTx into theChk
+        delete char cPos to cPos+1 of theTx
+      else
+        put "" into theChk
+      end if
+      put charPos("/",theTx) into cPos
+      if cPos ≠ 0 then
+        put char (cPos+1) of theTx into theCmd
+        delete char cPos to cPos+1 of theTx
+      else
+        put "" into theCmd
+      end if
+      textFace tFace
+      drawString theTx
+      textFace 0
+      if theCmd ≠ "" then
+        put "⌘" before theCmd
+        put stringWidth(theCmd) into theWd
+        put zellenRect@.right into tempRect@.right
+        put zellenRect@.right -fData@.bottom -fData@.bottom into ¬
+        tempRect@.left
+        clipRect tempRect@
+        moveTo zellenRect@.right -fData@.bottom -fData@.bottom,¬
+        zellenRect@.top +fData@.top +newLN
+        drawString theCmd
+      end if
+      if theChk ≠ "" then
+        put zellenRect@.left into tempRect@.left
+        put zellenRect@.left +fData@.bottom into tempRect@.right
+        clipRect tempRect@
+        moveTo zellenRect@.left +3,¬
+        zellenRect@.top +fData@.top +newLN
+        drawString theChk
+      end if
+      clipRect zellenRect@
+      if isDisabled then
+        penPat gray
+        penMode notPatBic
+        paintRect zellenRect@
+        penMode patCopy
+        penPat black
+      end if
+    end if
+  end repeat
+  if ausgewaehlt and char 1 of myStr ≠ "(" then
+    penMode 58
+    paintRect zellenRect@
+    penMode patCopy
+  end if
+  disposPtr fData
+  disposPtr tempRect
+  disposeRgn svClip
+  setPort aPort
+end malen
+
+on auswahl myList,ausgewaehlt,zellenRect,theCell,inhaltLen
+  put "x" into myStr
+  put charsHandle(myStr) into myData
+  setHandleSize myData,inhaltLen
+  HLock myData
+  LGetCell myData@,inhaltLen,theCell,myList
+  HUnlock myData
+  if char 1 of myStr ≠ "(" and char 1 of myStr ≠ "-" then
+    penMode 58
+    paintRect zellenRect@
+    penMode patCopy
+  end if
+end auswahl
+
+on drawBRRect aRect
+  moveTo aRect@.left,aRect@.bottom -1
+  lineTo aRect@.right -1,aRect@.bottom -1
+  lineTo aRect@.right -1,aRect@.top
+end drawBRRect
+
+function charPos ch,str
+  put length(ch) into cL
+  put length(str) into sL
+  repeat with x = 1 to sL
+    if char x of str = char 1 of ch then
+      if cL = 1 then return x
+      repeat with y = 2 to cL
+        if char y of ch ≠ char x+y-1 of str then
+          put FALSE into isSame
+          exit repeat
+        else
+          put TRUE into isSame
+        end if
+      end repeat
+      if isSame then
+        return x
+        exit repeat
+      end if
+    end if
+  end repeat
+  return 0
+end charPos

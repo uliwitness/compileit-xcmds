@@ -1,0 +1,21 @@
+-- ©1992 Heizer Software. All Rights Reserved.
+-- Registered users of CompileIt! may freely use this code for any purpose they choose.
+
+-- Pop-up menu xfcn. Text is return delimited list of menu items (standard meta-characters are accepted as well) or a MENU resource id number. xy is the topleft of the menu in the window's local coordinates. curItem is the currently selected item in the list if any (this item will be hilited when the menu pops up). An id number of 17003 is hard-wired in this XFCN, a better method would be to test for an unused id number on the fly and use that number instead.
+
+function Popper text,xy,curItem
+  if text is empty or xy is empty then return empty
+  if curItem is empty then put 0 into curItem
+  put 17003 into myId
+  setPt aPoint, item 1 of xy,item 2 of xy
+  localtoglobal aPoint
+  put newMenu(myId,"") into myHand
+  if myHand is nil then return "!! Unable to create menu."
+  AppendMenu myHand,text
+  InsertMenu myHand,-1
+  put  PopUpMenuSelect(myHand,hiWord(aPoint),loWord(aPoint),curItem) into myItem
+  GetItem myHand,loWord(myItem),myItemText
+  deleteMenu myId
+  disposeMenu myHand
+  return myItemText
+end Popper

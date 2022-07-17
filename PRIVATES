@@ -1,0 +1,34 @@
+xDialog private Data structure:
+
+BITS  Type       Use
+1-2   Boolean    Sizable  
+3-4   Int        Min width
+5-6   Int        Min height
+7-8   Int        Max width
+9-10  Int        Max height
+11-12 Boolean    Floats
+13-14 Int        Cursor
+
+
+resWindow private data structure:
+
+BITS  Type      Use
+1-2   Int       selectedButton
+3-4   Int       lineCount
+5-12  Rect      View 1
+13-20 Rect      View 2
+21-28 Rect      View 3
+29-36 Rect      View 4
+37-40 Long      scrollbar handle
+41-44 Long      content picture handle (data)
+45-46 Int       selectedLine
+47-48 Int       flags
+49-52 Long      content text handle
+53-54 Int       stack reference number
+55-56 Int       <UNUSED>
+
+resWindow flags:
+1: dont Frame Selection?
+2: scrollbar refCon is after content hit?
+
+

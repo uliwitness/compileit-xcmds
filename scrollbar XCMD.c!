@@ -1,0 +1,169 @@
+GLOBAL myRect:rect[8]
+GLOBAL myControl:handle
+GLOBAL myPoint:point
+
+on scrollbar wName,myBounds,curVal,minVal,maxVal
+  StrToRect myBounds,myRect
+  LocalToGlobal myRect.longIntType[1]
+  LocalToGlobal myRect.longIntType[2]
+  insetRect myRect,1,1
+  put newXWindow(myRect,wName,FALSE,2,FALSE,TRUE) into winPtr
+  if winPtr = NIL then return "Error: Couldn't create window."
+  put winPtr@.portRect.longIntType[1] into myRect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into myRect.longIntType[2]
+  insetRect myRect,-1,-1
+  put NewControl(winPtr,myRect,wName,TRUE,curVal,minVal,maxVal,scrollBarProc,0) into myControl
+  SetWRefCon winPtr,myControl
+  SetCRefCon myControl,2
+  showWindow winPtr
+end scrollbar
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  XWAllowReEntrancy winPtr,TRUE,TRUE
+  SetXWIdleTime winPtr,1
+end openEvent
+
+on idleEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myControl
+  put the suspended = TRUE into inBack
+  if (inBack = TRUE and myControl@@.contrlVis = 255) or¬
+  (inBack = FALSE and myControl@@.contrlVis = 0) then
+    if inBack = TRUE then
+      hideControl myControl
+    else
+      showControl myControl
+    end if
+  end if
+end idleEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myControl
+  if the mouse is down then
+    put 0 into oldPart
+    repeat until the mouse is up
+      GetMouse myPt
+      put getCRefCon(myControl) into pageVal
+      put testControl(myControl,myPt) into part
+      if oldPart = 0 or part = oldPart then
+        if part = inUpButton then
+          put pageVal div 10 *-1 into distance
+          if distance < 1 then
+            put 1 into pageVal
+          end if
+        else if part = inDownButton then
+          put pageVal div 10 into distance
+          if distance < 1 then
+            put 1 into pageVal
+          end if
+        else if part = inPageUp then
+          put pageVal * -1 into distance
+        else if part = inPageDown then
+          put pageVal into distance
+        else if part = inThumb then
+          put trackControl(myControl,myPt,NIL) into part
+          put 0 into distance
+        end if
+        hiliteControl myControl,part
+        setCtlValue myControl,distance + getCtlValue(myControl)
+        put part into oldPart
+        GetWTitle winPtr,theName
+        runHandler "clickInScrollbar" && quote & theName & quote & "," & getCtlValue(myControl)
+      else
+        hiliteControl myControl,0
+      end if
+    end repeat
+    hiliteControl myControl,0
+    return getCtlValue(myControl)
+  end if
+end mouseDownEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  BeginUpdate winPtr
+  DrawControls winPtr
+  endUpdate winPtr
+end updateEvent
+
+function setPropEvent eventInfoPtr,propNamePtr,propVal
+  put eventInfoPtr@.eventWindow into winPtr
+  put propNamePtr@.str255type into propName
+  put getWRefCon(winPtr) into myControl
+  if propName = "rect" then
+    hideControl myControl
+    put NewPtr(8) into box
+    SetRect box@,item 1 of propVal,item 2 of propVal,item 3 of propVal,item 4 of propVal
+    setPort (id of card window)
+    LocalToGlobal box@.longIntType[1]
+    LocalToGlobal box@.longIntType[2]
+    insetRect box@,1,1
+    MoveWindow winPtr, box@.IntegerType[2], box@.IntegerType[1], TRUE
+    SizeWindow winPtr, box@.IntegerType[4] - box@.IntegerType[2], box@.IntegerType[3] - box@.IntegerType[1], TRUE
+    setport winPtr
+    put winPtr@.portRect.longIntType[1] into box@.longIntType[1]
+    put winPtr@.portRect.longIntType[2] into box@.longIntType[2]
+    insetRect box@,-1,-1
+    MoveControl myControl, box@.IntegerType[2], box@.IntegerType[1]
+    SizeControl myControl, box@.IntegerType[4] - box@.IntegerType[2], box@.IntegerType[3] - box@.IntegerType[1]
+    DisposPtr box
+    showControl myControl
+  else if propName = "maximum" then
+    if isInteger(propVal) then
+      setCtlMax myControl,propVal
+    end if
+    GetWTitle winPtr,theName
+    runHandler "clickInScrollbar" && quote & theName & quote & "," & getCtlValue(myControl)
+  else if propName = "minimum" then
+    if isInteger(propVal) then
+      setCtlMin myControl,propVal
+    end if
+    GetWTitle winPtr,theName
+    runHandler "clickInScrollbar" && quote & theName & quote & "," & getCtlValue(myControl)
+  else if propName = "state" then
+    if isInteger(propVal) then
+      setCtlValue myControl,propVal
+    end if
+    GetWTitle winPtr,theName
+    runHandler "clickInScrollbar" && quote & theName & quote & "," & getCtlValue(myControl)
+  else if propName = "pageDistance" then
+    if isInteger(propVal) then
+      setCRefCon myControl,propVal
+    end if
+  else if propName = "active" then
+    if propVal = TRUE then
+      showControl myControl
+    else
+      hideControl myControl
+    end if
+  else
+    return TRUE
+  end if
+  return FALSE
+end setPropEvent
+
+function getPropEvent eventInfoPtr,propNamePtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put propNamePtr@.str255type into propName
+  put getWRefCon(winPtr) into myControl
+  if propName = "maximum" then
+    return getCtlMax(myControl)
+  else if propName = "minimum" then
+    return getCtlMin(myControl)
+  else if propName = "state" then
+    return getCtlValue(myControl)
+  else if propName = "pageDistance" then
+    return getCRefCon(myControl)
+  end if
+end getPropEvent
+
+function isInteger nb
+  if nb = empty then return FALSE
+  repeat with x = 1 to (number of chars of nb)
+    if charToNum(char x of nb) > 57 or charToNum(char x of nb) < 48 then
+      return FALSE
+    end if
+  end repeat
+  return TRUE
+end isInteger

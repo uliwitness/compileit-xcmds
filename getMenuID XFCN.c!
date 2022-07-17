@@ -1,0 +1,53 @@
+function getMenuID mNam
+  if mNam = "!" then
+    return "getMenuID, © 1996 by Uli Kusterer, all rights reserved."
+  else if mNam = "?" then
+    return "put|get getMenuID(<menuName>)"
+  end if
+  put getMenuBar() into currMenus
+  HLock currMenus
+  put currMenus@ into mPtr
+  put currMenus@@.integerType[1] + mPtr into theLastMenu
+  add 6 to mPtr
+  put NIL into retVal
+  repeat until mPtr > theLastMenu
+    add 1 to menuCount
+    put mPtr@.handleType[1] into myMenu
+    if myMenu@@.menuData = mNam then
+      put myMenu@@.menuID into retVal
+      exit repeat
+    end if
+    add 6 to mPtr
+  end repeat
+  HUnlock currMenus
+  disposHandle currMenus
+  if retVal = NIL then
+    put getHierMenuID(mNam) into retVal
+  end if
+  return retVal
+end getMenuID
+
+function getHierMenuID mNam
+  put getMenuBar() into currMenus
+  HLock currMenus
+  put currMenus@ into mPtr
+  add currMenus@@.integerType[1] to mPtr
+  add 6 to mPtr -- get over last menu
+  put mPtr@.integerType[1] into lastOffs
+  put mPtr +lastOffs into theLastMenu
+  add 6 to mPtr -- get over menuTitleSave & lastHMenu
+  put NIL into retVal
+  if mPtr > theLastMenu then sysbeep 30
+  repeat until mPtr > theLastMenu
+    add 1 to menuCount
+    put mPtr@.handleType[1] into myMenu
+    if myMenu@@.menuData = mNam then
+      put myMenu@@.menuID into retVal
+      exit repeat
+    end if
+    add 6 to mPtr
+  end repeat
+  HUnlock currMenus
+  disposHandle currMenus
+  return retVal
+end getHierMenuID

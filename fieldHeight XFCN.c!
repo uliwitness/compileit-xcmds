@@ -1,0 +1,13 @@
+function fieldHeight fieldID,cardfldFlag
+  put 0 into theHeight
+  if fieldID+0 is 0 then return "!! Field ID must be supplied"
+  if cardfldFlag is not "true" then put false into cdFlag else put true into cdFlag
+  put GetFieldTE(cdFlag,fieldID,0,empty) into TEHandle
+  if TEHandle is nil then return "!! Could not access style information"
+  put TEHandle@.ptrType into TEptr
+  add $5E to TEptr
+  put TEptr@.integerType into numLines
+  put TEGetHeight(numLines, 1, TEHandle) into pixHeight
+  disposHandle TEHandle
+  return pixHeight
+end fieldHeight

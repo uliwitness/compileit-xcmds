@@ -1,0 +1,22 @@
+on createMenus mode,mBarID
+  global gDontTouch_HcMenusHandle
+  if mode = "new" or mode = "N" then
+    put getMenuBar() into hcMenus
+    put hcMenus into gDontTouch_HcMenusHandle
+    if mBarID+0 = 0 then put 7701 into mBarID
+    put GetNewMbar(mBarID) into myMenus
+    setMenuBar myMenus
+    disposHandle myMenus
+  else if mode = "reset" or mode = "R" then
+    put gDontTouch_HcMenusHandle into hcMenus
+    setMenuBar hcMenus
+    disposHandle hcMenus
+  else if mode = "!" then
+    return "createMenus 1.0, © 1995 by Uli Kusterer."
+  else if mode = "?" then
+    return "createMenus new[,<mBarResID>]" &return& "createMenus reset"
+  else
+    return "Error: unrecognized mode."
+  end if
+  drawMenuBar
+end createMenus

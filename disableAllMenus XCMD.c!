@@ -1,0 +1,42 @@
+on disableAllMenus mode
+  global gDisAllM_PREFS
+  if mode = TRUE then
+    if gDisAllM_PREFS ≠ empty then return "ERROR: Variable not empty."
+    put getMenuBar() into currMenus
+    HLock currMenus
+    put currMenus@ into mPtr
+    put currMenus@@.integerType[1] + mPtr into theLastMenu
+    add 6 to mPtr
+    repeat until mPtr > theLastMenu
+      put mPtr@.handleType[1] into myMenu
+      put "," & value("the enabled of menu id" && myMenu@@.menuID) after gDisAllM_PREFS
+      disableItem myMenu,0
+      add 6 to mPtr
+    end repeat
+    HUnlock currMenus
+    disposHandle currMenus
+    delete char 1 of gDisAllM_PREFS
+  else if mode = FALSE then
+    if gDisAllM_PREFS = empty then return "ERROR: Variable not set up."
+    put getMenuBar() into currMenus
+    HLock currMenus
+    put currMenus@ into mPtr
+    put 0 into mNb
+    put currMenus@@.integerType[1] +mPtr into theLastMenu
+    add 6 to mPtr
+    repeat until mPtr > theLastMenu
+      add 1 to mNb
+      put mPtr@.handleType[1] into myMenu
+      if item mNb of gDisAllM_PREFS ≠ FALSE then enableItem myMenu,0
+      add 6 to mPtr
+    end repeat
+    HUnlock currMenus
+    disposHandle currMenus
+    put empty into gDisAllM_PREFS
+  else if mode = "?" then
+    return "disableAllMenus <boolean>"
+  else if mode = "!" then
+    return "disableAllMenus 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  drawMenuBar
+end disableAllMenus

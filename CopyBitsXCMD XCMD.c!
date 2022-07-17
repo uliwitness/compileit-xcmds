@@ -1,0 +1,29 @@
+global rect1:R[8],rect2:R
+on CopyBitsXCMD num
+  GetGWorld oldPort,oldDev
+  put NewGworld(myGWorld,8,oldPort@.portRect,NIL,NIL,0) into myErr
+  if myErr≠0 then
+    sysBeep 10
+    answer "An error occured in the XCMD. NewGworld failed. ID=" & myErr
+    exit CopyBitsXCMD
+  end if
+  SetGWorld myGWorld,NIL
+  put GetGWorldPixMap(myGWorld) into pixMapHandle
+  put LockPixels(pixMapHandle) into myErr
+  if myErr=1 then
+    eraseRect rect1
+    copyBits oldPort@.portBits,myGWorld@.portBits,oldPort@.portRect,oldPort@.portRect,0,nil
+    SetGWorld oldPort,OldDev
+    put openPicture(oldPort@.portRect) into myPic
+    copyBits myGWorld@.portBits,oldPort@.portBits,oldPort@.portRect,oldPort@.portRect,num,nil
+    closePicture
+    AddResource myPic,"PICT",UniqueID("PICT"),"demo"
+  else
+    sysBeep 10
+    answer "An error occured in the XCMD. LockPixels failed. Returned false."
+    exit CopyBitsXCMD
+  end if
+  unlockPixels pixMapHandle
+  SetPort oldPort
+  DisposeGWorld myGWorld
+end CopyBitsXCMD

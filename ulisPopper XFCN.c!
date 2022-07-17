@@ -1,0 +1,40 @@
+function ulisPopper text,xy,curItem,tf,ts
+  if text = "?" and paramCount() = 1 then
+    return "put|get ulisPopper(<text>,<position>,<curItem>[,<font>,<size>])"
+  else if text = "!" and paramCount() = 1 then
+    return "ulisPopper 1.5, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  if text is empty then return "Error: Popup text is required."
+  if xy is empty then return "Error: Popup position is required."
+  if curItem is empty then put 0 into curItem
+  if tf ≠ empty then
+    getPort svPort
+    GetWMgrPort bPort
+    setPort bPort
+    put bPort@.txFont into oldTF
+    put bPort@.txSize into oldTS
+    GetFNum tf,fNum
+    textFont fNum
+    textSize ts+0
+    SetPort svPort
+  end if
+  put 17003 into myId
+  setPt aPoint, item 1 of xy,item 2 of xy
+  localtoglobal aPoint
+  put newMenu(myId,"") into myHand
+  if myHand is nil then return "!! Unable to create menu."
+  AppendMenu myHand,text
+  InsertMenu myHand,-1
+  setItemMark myHand,curItem,numToChar(18)
+  put PopUpMenuSelect(myHand,hiWord(aPoint),loWord(aPoint),curItem) into myItem
+  GetItem myHand,loWord(myItem),myItemText
+  deleteMenu myId
+  disposeMenu myHand
+  if tf ≠ empty then
+    SetPort bPort
+    textFont oldTF
+    textSize oldTS
+    SetPort svPort
+  end if
+  return loWord(myItem) &return& myItemText
+end ulisPopper

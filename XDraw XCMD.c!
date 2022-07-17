@@ -1,0 +1,541 @@
+GLOBAL myPicHandle:picHandle -- for picture drawing
+GLOBAL RGBvalue:Record[6]    -- for using RGB fore- and background- colors
+GLOBAL myPoly:handle         -- for drawing polygons
+GLOBAL aRect:R[8]
+
+on XDraw mode,opcodes
+  if mode = "?" then return help()
+  if mode = "!" then return copyright()
+  if mode = "Draw" then
+    return Do_DrawStuff( opcodes,TRUE )
+  else if mode = "SavePic" then
+    return Do_SavePicStuff(param(3),param(4),param(5),opcodes)
+  else if mode = "SaveFile" then
+    return Do_SavePictFileStuff(param(3),param(4),opcodes)
+  else if item 1 of mode = "within" then
+    return Do_WithinStuff(opcodes,param(3),param(4))
+  else if mode = "invalid" then
+    return Do_UpdateStuff(opcodes,FALSE)
+  else if mode = "valid" then
+    return Do_UpdateStuff(opcodes,TRUE)
+  else if mode = "drawToCard" then
+    Do_DrawCardStuff opcodes
+  else
+    return "Error: Invalid mode selector. Modes must be 'Draw', 'invalid', 'valid', 'savePic' or 'within'."
+  end if
+end XDraw
+
+function Do_UpdateStuff opcodes,mode
+  put NewRgn() into myRegion
+  if myRegion = nil then return "Error: Not enough memory."
+  OpenRgn
+  put Do_DrawStuff( opcodes,noPolyRgn ) into rv
+  CloseRgn myRegion
+  if char 1 to 6 of rv = "Error:" then
+    DisposeRgn myRegion
+    return rv
+  end if
+  if emptyRgn(myRegion) then return "Error: Not enough memory/Maximum region size exceeded."
+  if mode = FALSE then
+    invalRgn myRegion
+  else if mode = TRUE then
+    validRgn myRegion
+  end if
+  DisposeRgn myRegion
+  return empty
+end Do_UpdateStuff
+
+function Do_WithinStuff opcodes,ptH,ptV
+  put NewRgn() into myRegion
+  if myRegion = nil then return "Error: Not enough memory."
+  OpenRgn
+  put Do_DrawStuff( opcodes,noPolyRgn ) into rv
+  CloseRgn myRegion
+  if char 1 to 6 of rv = "Error:" then
+    DisposeRgn myRegion
+    return rv
+  end if
+  if emptyRgn(myRegion) then return "Error: Not enough memory/Maximum region size exceeded."
+  SetPt myPoint,ptH,ptV
+  if PtInRgn(myPoint,myRegion) then
+    DisposeRgn myRegion
+    return TRUE
+  else
+    DisposeRgn myRegion
+    return FALSE
+  end if
+end Do_WithinStuff
+
+function Do_SavePicStuff pName,pNum,pReplace,opcodes
+  if noInteger(pNum) then
+    Return "Error: Picture ID must be either zero or an integer."
+  end if
+  put Get1Resource("PICT",pNum) into theRes
+  if theRes ≠ nil then -- resource already exists
+    if pReplace = "Replace" then
+      RmveResource theRes
+      put ResError() into theErr
+      if theErr ≠ 0 then
+        return "Error: Couldn't remove resource (" & theErr & ")."
+      end if
+    else if pReplace = "Unique" then
+      put 0 into pNum
+      repeat until pNum > 128 and pNum < 32767
+        put UniqueID("PICT") into pNum
+      end repeat
+    else
+      return "Error: Resource already exists."
+    end if
+  end if
+  put Do_MakePicture(opcodes) into rv
+  if char 1 to 6 of rv is not "Error:" then
+    AddResource rv,"PICT",pNum,pName
+  else
+    return rv
+  end if
+  return empty
+end Do_SavePicStuff
+
+function Do_SavePictFileStuff fNam,fType,opcodes
+  put Do_MakePicture( opcodes ) into retval
+  if char 1 to 6 of retval = "Error:" then
+    return retval
+  else
+    put retval+0 into rv
+  end if
+  if length(fType) ≠ 4 then
+    put getNamedResource("STR ","Pict File Creator") into theTypeRes
+    if theTypeRes = NIL then
+      put "ttxt" into fType
+    else
+      detachResource theTypeRes
+      put hyperCardText(theTypeRes) into theTypeRes
+      put char 1 to 4 of theTypeRes into fType
+    end if
+  end if
+  put create(fNam,0,fType,"PICT") into myErr
+  if myErr = -48 then -- need to replace file
+    put FSDelete(fNam,0) into myErr
+    if myErr < 0 then
+      killpicture rv
+      return FileError(myErr)
+    end if
+    put create(fNam,0,fType,"PICT") into myErr
+    if myErr ≠ 0 then
+      killpicture rv
+      return FileError(myErr)
+    end if
+  else if myErr < 0 then
+    killpicture rv
+    return FileError(myErr)
+  end if
+  put FSOpen(fNam,0,theRef) into myErr
+  if myErr < 0 then
+    killpicture rv
+    return FileError(myErr)
+  end if
+  put newHandleClear(1) into zeroData
+  HLock zeroData
+  repeat 512 -- header
+    put 1 into theCnt
+    put FSWrite(theRef,theCnt,zeroData@) into myErr
+    if myErr < 0 then
+      killpicture rv
+      return FileError(myErr)
+    end if
+  end repeat
+  HUnlock zeroData
+  disposHandle zeroData
+  HLock rv
+  put getHandleSize(rv) into theCnt
+  put FSWrite(theRef,theCnt,rv@) into myErr
+  if myErr < 0 then
+    killpicture rv
+    return FileError(myErr)
+  end if
+  HUnlock rv
+  put FSClose(theRef) into myErr
+  killpicture rv
+end Do_SavePictFileStuff
+
+function Do_MakePicture opcodes
+  put rect of this cd into cRec
+  SetRect aRect,0,0,(item 3 of cRec - item 1 of cRec),(item 4 of cRec - item 2 of cRec)
+  put OpenPicture( aRect ) into myPicture
+  put Do_DrawStuff( opcodes, noPolyRgn ) into rv
+  ClosePicture
+  if myPicture = nil then
+    return "Error: Not enough memory"
+  else if char 1 to 6 of rv = "Error:" then
+    KillPicture myPicture
+    return rv
+  else
+    return myPicture
+  end if
+end Do_MakePicture
+
+on Do_DrawCardStuff opcodes
+  getPort currentPort  -- save current grafPort
+  -- get access to the card bitmap
+  put newPtr(14) into maskBitsPointer
+  put newPtr(14) into dataBitsPointer
+  GetMaskAndData maskBitsPointer@, dataBitsPointer@
+  StrToRect value("the rect of this card"),aRect@
+  put newPtr(128) into myPort
+  openPort myPort
+  setOrigin 0,0
+  movePortTo 0,0
+  portSize aRect@.right,aRect@.bottom
+  rectRgn myPort@.visRgn,myPort@.portRect
+  rectRgn myPort@.clipRgn,myPort@.portRect
+  put dataBitsPointer@.baseAddr into myPort@.portBits.baseAddr
+  put dataBitsPointer@.rowBytes into myPort@.portBits.rowBytes
+  put dataBitsPointer@.bounds.topLeft into myPort@.portBits.bounds.topLeft
+  put dataBitsPointer@.bounds.botRight into myPort@.portBits.bounds.botRight
+  
+  put Do_DrawStuff( opcodes,noPort ) into rv
+  
+  setPort currentPort -- restore previous grafPort.
+  closePort myPort
+  changedMaskAndData -- tell HC we changed it so it will update correctly.
+  
+  disposPtr dataBitsPointer
+  disposPtr maskBitsPointer
+  disposPtr myPort
+  return rv
+end Do_DrawCardStuff
+
+function Do_DrawStuff opcodes,mode
+  put newPtr(8) into myRect
+  PenNormal
+  repeat with x = 1 to (number of lines of opcodes)
+    put item 1 of line x of opcodes into cmd
+    if cmd = "line" then
+      MoveTo (item 2 of line x of opcodes),(item 3 of line x of opcodes)
+      LineTo (item 4 of line x of opcodes),(item 5 of line x of opcodes)
+    else if cmd = "rect" then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),¬
+      (item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      if item 6 of line x of opcodes = "Paint" or¬
+      item 6 of line x of opcodes = "Fill" then
+        PaintRect myRect@
+      else if item 6 of line x of opcodes = "Frame" then
+        FrameRect myRect@
+      else if item 6 of line x of opcodes = "Erase" then
+        EraseRect myRect@
+      else if item 6 of line x of opcodes = "Invert" then
+        InvertRect myRect@
+      end if
+    else if cmd = "oval" then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),¬
+      (item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      if item 6 of line x of opcodes = "Paint" or¬
+      item 6 of line x of opcodes = "Fill" then
+        PaintOval myRect@
+      else if item 6 of line x of opcodes = "Frame" then
+        FrameOval myRect@
+      else if item 6 of line x of opcodes = "Erase" then
+        EraseOval myRect@
+      else if item 6 of line x of opcodes = "Invert" then
+        InvertOval myRect@
+      end if
+    else if cmd = "pSiz" or cmd = "pen size" then
+      PenSize (item 2 of line x of opcodes),(item 3 of line x of opcodes)
+    else if cmd = "fCol" or cmd = "fore Color" then
+      if item 2 of line x of opcodes = "white" then
+        ForeColor whiteColor
+      else if item 2 of line x of opcodes = "black" then
+        ForeColor blackColor
+      else if item 2 of line x of opcodes = "yellow" then
+        ForeColor yellowColor
+      else if item 2 of line x of opcodes = "magenta" then
+        ForeColor magentaColor
+      else if item 2 of line x of opcodes = "red" then
+        ForeColor redColor
+      else if item 2 of line x of opcodes = "cyan" then
+        ForeColor cyanColor
+      else if item 2 of line x of opcodes = "green" then
+        ForeColor greenColor
+      else if item 2 of line x of opcodes = "blue" then
+        ForeColor blueColor
+      else -- assume it's an RGB color
+        put item 2 of line x of opcodes into RGBvalue.integertype[1]
+        put item 3 of line x of opcodes into RGBvalue.integertype[2]
+        put item 4 of line x of opcodes into RGBvalue.integertype[3]
+        RGBForeColor RGBvalue
+      end if
+    else if cmd = "bcol" or "back color" then
+      if item 2 of line x of opcodes = "white" then
+        BackColor whiteColor
+      else if item 2 of line x of opcodes = "black" then
+        BackColor blackColor
+      else if item 2 of line x of opcodes = "yellow" then
+        BackColor yellowColor
+      else if item 2 of line x of opcodes = "magenta" then
+        BackColor magentaColor
+      else if item 2 of line x of opcodes = "red" then
+        BackColor redColor
+      else if item 2 of line x of opcodes = "cyan" then
+        BackColor cyanColor
+      else if item 2 of line x of opcodes = "green" then
+        BackColor greenColor
+      else if item 2 of line x of opcodes = "blue" then
+        BackColor blueColor
+      else -- assume it's an RGB color
+        put item 2 of line x of opcodes into RGBvalue.integertype[1]
+        put item 3 of line x of opcodes into RGBvalue.integertype[2]
+        put item 4 of line x of opcodes into RGBvalue.integertype[3]
+        RGBBackColor RGBvalue
+      end if
+    else if cmd = "rRec" or cmd = "round rect" then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),¬
+      (item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      if item 7 of line x of opcodes ≠ 0 then
+        put item 7 of line x of opcodes into ow
+      else
+        put 15 into ow
+      end if
+      if item 8 of line x of opcodes ≠ 0 then
+        put item 8 of line x of opcodes into oh
+      else
+        put 15 into oh
+      end if
+      if item 6 of line x of opcodes = "Paint" or¬
+      item 6 of line x of opcodes = "Fill" then
+        PaintRoundRect myRect@,ow,oh
+      else if item 6 of line x of opcodes = "Frame" then
+        FrameRoundRect myRect@,ow,oh
+      else if item 6 of line x of opcodes = "Erase" then
+        EraseRoundRect myRect@,ow,oh
+      else if item 6 of line x of opcodes = "Invert" then
+        InvertRoundRect myRect@,ow,oh
+      end if
+    else if cmd = "port" then
+      if mode ≠ noPolyRgn or mode ≠ noPort then -- only set the port if we're allowed to
+        if noInteger(item 2 of line x of opcodes) then
+          put the id of window (item 2 of line x of opcodes) into item 2 of line x of opcodes
+        end if
+        if not noInteger(item 2 of line x of opcodes) then
+          setport (item 2 of line x of opcodes)
+        end if
+      end if
+    else if cmd = "pmod" or cmd = "pen mode" then
+      if item 2 of line x of opcodes = "Copy" then
+        PenMode patCopy
+      else if item 2 of line x of opcodes = "Or" then
+        PenMode patOr
+      else if item 2 of line x of opcodes = "XOr" then
+        PenMode patXOr
+      else if item 2 of line x of opcodes = "Bic" then
+        PenMode patBic
+      else if item 2 of line x of opcodes = "notCopy" then
+        PenMode notPatCopy
+      else if item 2 of line x of opcodes = "notOr" then
+        PenMode notPatOr
+      else if item 2 of line x of opcodes = "notXOr" then
+        PenMode notPatXOr
+      else if item 2 of line x of opcodes = "notBic" then
+        PenMode notPatBic
+      else if item 2 of line x of opcodes = "hilite" then
+        PenMode (patCopy + 50)
+      end if
+    else if cmd = "tstr" or cmd = "text" or cmd = "string" then
+      MoveTo item 2 of line x of opcodes,item 3 of line x of opcodes
+      GetFNum item 4 of line x of opcodes,fNum
+      textFont fNum
+      put 0 into fFace
+      if item 5 of line x of opcodes ≠ "plain" then
+        if "bold" is in item 5 of line x of opcodes then
+          add 1 to fFace
+        end if
+        if "italic" is in item 5 of line x of opcodes then
+          add 2 to fFace
+        end if
+        if "underline" is in item 5 of line x of opcodes then
+          add 4 to fFace
+        end if
+        if "outline" is in item 5 of line x of opcodes then
+          add 8 to fFace
+        end if
+        if "shadow" is in item 5 of line x of opcodes then
+          add 16 to fFace
+        end if
+        if "condense" is in item 5 of line x of opcodes then
+          add 32 to fFace
+        end if
+        if "extend" is in item 5 of line x of opcodes then
+          add 64 to fFace
+        end if
+      end if
+      textFace fFace
+      textSize item 6 of line x of opcodes
+      DrawString item 7 of line x of opcodes
+    else if cmd = "clip" then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),(item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      ClipRect myRect@
+    else if cmd = "pict" or cmd = "picture" then
+      if noInteger(item 2 of line x of opcodes) then
+        put getNamedResource("PICT",item 2 of line x of opcodes) into myPicHandle
+      else
+        put getResource("PICT",item 2 of line x of opcodes) into myPicHandle
+      end if
+      if myPicHandle ≠ nil and number of items of line x of opcodes = 6 then
+        put item 3 of line x of opcodes into pleft
+        put item 4 of line x of opcodes into ptop
+        put item 5 of line x of opcodes into pright
+        put item 6 of line x of opcodes into pbottom
+        SetRect myRect@,pleft,ptop,pright,pbottom
+        DrawPicture myPicHandle,myRect@
+      else if myPicHandle ≠ nil and number of items of line x of opcodes = 4 then
+        put item 3 of line x of opcodes into pleft
+        put item 4 of line x of opcodes into ptop
+        put myPicHandle@@.integerType[4] - myPicHandle@@.integerType[2] into hoch
+        put myPicHandle@@.integerType[5] - myPicHandle@@.integerType[3] into breite
+        SetRect myRect@,pleft,ptop,pleft + breite,ptop + hoch
+        DrawPicture myPicHandle,myRect@
+      end if
+      ReleaseResource myPicHandle
+    else if cmd = "icon" then
+      put item 2 of line x of opcodes into theID
+      if number of items of line x of opcodes = 4 then
+        -- make an ampty rect to indicate we want to calculate the bounds.
+        put item 3 to 4 of line x of opcodes into theRct
+        put "," & item 3 to 4 of line x of opcodes after theRct
+      else
+        put item 3 to 6 of line x of opcodes into theRct
+      end if
+      strToRect theRct,myRect@
+      showColorIcon theID+0,myRect
+    else if cmd = "fPat" or cmd = "fore pattern" then
+      put GetResource("PAT ",item 2 of line x of opcodes) into myPatHandle
+      if myPatHandle ≠ nil then
+        PenPat myPatHandle@@
+        ReleaseResource myPatHandle
+      end if
+    else if cmd = "bpat" or cmd = "back pattern" then
+      put GetResource("PAT ",item 2 of line x of opcodes) into myPatHandle
+      if myPatHandle ≠ nil then
+        BackPat myPatHandle@@
+        ReleaseResource myPatHandle
+      end if
+    else if (cmd = "invR" or cmd = "invalidate rect") and mode ≠ noPort then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),(item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      invalRect myRect@
+    else if (cmd = "valR" or cmd = "validate rect") and mode ≠ noPort then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),(item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      validRect myRect@
+    else if cmd = "poly" or cmd = "polygon" then
+      MoveTo word 1 of item 3 of line x of opcodes, word 2 of item 3 of line x of opcodes
+      if mode ≠ noPolyRgn then -- check if we're not already defining a region
+        put openPoly() into myPoly
+        if myPoly = NIL then return "Error: Couldn't open polygon."
+      end if
+      repeat with y = 4 to (number of items of line x of opcodes)
+        put (word 1 of item y of line x of opcodes)+0 into xPos
+        put (word 2 of item y of line x of opcodes)+0 into yPos
+        LineTo xPos,yPos
+      end repeat
+      LineTo word 1 of item 3 of line x of opcodes, word 2 of item 3 of line x of opcodes
+      if mode ≠ noPolyRgn then -- check if we're not already defining a region
+        closePoly
+        if item 2 of line x of opcodes = "Frame" then
+          FramePoly myPoly
+        else if item 2 of line x of opcodes = "Fill" or¬
+        item 6 of line x of opcodes = "Paint" then
+          PaintPoly myPoly
+        else if item 2 of line x of opcodes = "Erase" then
+          ErasePoly myPoly
+        else if item 2 of line x of opcodes = "Invert" then
+          InvertPoly myPoly
+        end if
+        killPoly myPoly
+      end if
+    end if
+  end repeat
+  PenPat black
+  ForeColor blackColor
+  BackColor whiteColor
+  PenNormal
+  disposptr myRect
+end Do_DrawStuff
+
+function help
+  return "Syntax: XDraw <Draw|within|update|drawToCard|valid|invalid|savePic|saveFile>[,<opcodes>[,<name>[,<id>,<replace>]]]"
+end help
+
+function copyright
+  return "1.7 © 1995-99 by Uli Kusterer, all rights reserved."
+end copyright
+
+function noInteger nb
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then return TRUE
+  end repeat
+  return FALSE
+end noInteger
+
+on showIcon iconID,myRect
+  put GetResource("ICON",iconID) into theIcon
+  if theIcon ≠ nil then -- icon load successfull?
+    if myRect@.right -myRect@.left = 0 and¬
+    myRect@.bottom -myRect@.top = 0 then
+      put myRect@.left +32 into myRect@.right
+      put myRect@.top +32 into myRect@.bottom
+    end if
+    eraseRect myRect@
+    PlotIcon myRect@,theIcon
+  end if
+end showIcon
+
+on showColorIcon iconID,myRect
+  put GetCIcon(iconID) into theIcon
+  if theIcon ≠ nil then -- there is a cicn
+    if myRect@.right -myRect@.left = 0 and¬
+    myRect@.bottom -myRect@.top = 0 then
+      put myRect@.left +theIcon@@.bounds.right -theIcon@@.bounds.left into myRect@.right
+      put myRect@.top +theIcon@@.bounds.bottom -theIcon@@.bounds.top into myRect@.bottom
+    end if
+    PlotCIcon myRect@,theIcon
+    ReleaseResource theIcon
+  else -- there is no cicn, try B/W version
+    showIcon iconID,myRect
+  end if
+end showColorIcon
+
+function fileError myErr
+  if myErr = -33 then
+    return "Error: Directory is full."
+  else if myErr = -34 then
+    return "Error: Disk is full."
+  else if myErr = -35 then
+    return "Error: No such volume."
+  else if myErr = -36 then
+    return "Error: Read/Write Error."
+  else if myErr = -37 then
+    return "Error: Bad filename."
+  else if myErr = -38 then
+    return "Error: File not open."
+  else if myErr = -42 then
+    return "Error: Too many files open."
+  else if myErr = -43 then
+    return "Error: File not found."
+  else if myErr = -44 then
+    return "Error: Volume is locked."
+  else if myErr = -46 then
+    return "Error: Volume is locked."
+  else if myErr = -49 then
+    return "Error: File already open for writing."
+  else if myErr = -51 then
+    return "Error: Bad reference number."
+  else if myErr = -54 then
+    return "Error: File locked for writing."
+  else if myErr = -120 then
+    return "Error: Directory not found/Invalid search path."
+  else if myErr = -5000 then
+    return "Error: User hasn't got correct access to file."
+  else if myErr = -5025 then
+    return "Error: Already got folder of that name."
+  else
+    return "Error: Unknown #" & myErr
+  end if
+end fileError

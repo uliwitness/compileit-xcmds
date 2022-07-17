@@ -1,0 +1,79 @@
+-- ©1992 Heizer Software. All Rights Reserved.
+-- Registered users of CompileIt! may freely use this code for any purpose they choose.
+
+-- For a HyperCard 2.x field, returns any of the following depending on longResult:
+
+-- longResult is empty or false = returns offset to first char of style specified in -- theStyles
+
+-- longResult is true = returns offset of first and last chars of style specified in theStyles (the range of the first occurance of theStyles)
+
+-- first item of longResult is true and second item is "L" = returns line number of first occurance of theStyles
+
+-- FieldID is the id number of the field and cardfldFlag is a boolean (true = card field, false= bg field).
+
+function StyleOffset fieldID,cardfldFlag,theStyles,longResult
+  put 0 into theChar
+  put 0 into endChar
+  if fieldID+0 is 0 then return "!! Field ID must be supplied"
+  if cardfldFlag is not "true" then put false into cdFlag else put true into cdFlag
+  if theStyles is empty then return "!! You must specify a style"
+  if item 1 of longResult is not "true" then put false into LR else put true into LR
+  if item 2 of longResult is not empty then put item 2 of longResult into info
+  put GetFieldTE(cdFlag,fieldID,0,empty) into TEHandle
+  if TEHandle is nil then return "!! Could not access style information"
+  if info = "Ls" then -- number of lines in field
+    put TEHandle@.ptrType into TEptr
+    add $5E to TEptr
+    put TEptr@.integerType into numLines
+    disposHandle TEHandle
+    return numLines
+  end if
+  put StyleSetOf(theStyles) into whichStyle
+  TESetSelect 0,32000,TEHandle
+  put GetStylScrap(TEHandle) into stylHandle
+  if stylHandle is nil then if LR then return "0,0" else return 0
+  put stylHandle@.ptrType into stylPtr
+  put stylPtr@.IntegerType[1] into numElements
+  add 2 to stylPtr
+  
+  repeat with i= 0 to numElements-1
+    
+    if charToNum(stylPtr@.charType[10]) = whichStyle then
+      put stylPtr@.longIntType[1]+1 into theChar
+      if LR then if i+1 ≥ numElements then put GetHandleSize(TEGetText(TEHandle)) into endChar else
+        add 20 to stylPtr
+        put stylPtr@.longIntType[1] into endChar
+      end if
+      exit repeat
+    end if
+    
+    add 20 to stylPtr
+  end repeat
+  
+  if info = "L" and LR then -- want line number of style instead of offset
+    put TEHandle@@.hText into textHand
+    put 0 into theLine
+    repeat with i=0 to GetHandleSize(textHand)-1
+      if endChar+1 < i then exit repeat
+      if charToNum(texthand@@.charType[i]) = 13 then add 1 to theLine
+    end repeat
+  end if
+  
+  disposHandle TEHandle
+  disposHandle stylHandle
+  if info = "L" then return theLine
+  if LR then return theChar&","&endChar else return theChar
+end StyleOffset
+
+function StyleSetOf theStyles
+  put 0 into stylesum
+  if theStyles contains "bold" then add 1 to stylesum
+  if theStyles contains "italic" then add 2 to stylesum
+  if theStyles contains "underline" then add 4 to stylesum
+  if theStyles contains "outline" then add 8 to stylesum
+  if theStyles contains "shadow" then add 16 to stylesum
+  if theStyles contains "condense" then add 32 to stylesum
+  if theStyles contains "extend" then add 64 to stylesum
+  if theStyles contains "group" then add 128 to stylesum
+  return stylesum
+end StyleSetOf

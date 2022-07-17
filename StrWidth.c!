@@ -1,0 +1,41 @@
+SymbolSet "StrWidth XFCN"
+
+function StrWidth str,fNam,stylz,fSize
+  if str = "?" and paramCount() = 1 then return help()
+  if str = "!" and paramCount() = 1 then return copyright()
+  GetFNum fNam,fNum
+  textFont fNum
+  put 0 into fFace
+  if "bold" is in stylz then
+    add 1 to fFace
+  end if
+  if "italic" is in stylz then
+    add 2 to fFace
+  end if
+  if "underline" is in stylz then
+    add 4 to fFace
+  end if
+  if "outline" is in stylz then
+    add 8 to fFace
+  end if
+  if "shadow" is in stylz then
+    add 16 to fFace
+  end if
+  if "condense" is in stylz then
+    add 32 to fFace
+  end if
+  if "extend" is in stylz then
+    add 64 to fFace
+  end if
+  textFace fFace
+  textSize fSize
+  return StringWidth(str)
+end StrWidth
+
+function help
+  return "Syntax: StrWidth(<string>,<font>,<styles>,<size>)"
+end help
+
+function copyright
+  return "1.0 © 1995 by Uli Kusterer, all rights reserved."
+end copyright

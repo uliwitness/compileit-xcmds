@@ -1,0 +1,188 @@
+GLOBAL myEvent:R[16]
+
+on startupMBar
+  put getNamedDialog("StartupMenuBar") into dlogPtr
+  if dlogPtr = NIL then return "Error: Couldn't open dialog."
+  put newPtr(8) into box
+  put newPtr(8) into rectA
+  put newPtr(8) into rectB
+  setPort dlogPtr
+  textFont 3
+  textSize 9
+  GetDItem dlogPtr,4,itemType,itemHandle,rectA@
+  subtract 15 from rectA@.right -- scroll bar
+  setRect RectB@,0,0,1,0
+  setPt myPos,0,0
+  put NIL into winPtr@.refCon
+  put LNew(RectA@,RectB@,myPos,0,dlogPtr,TRUE,TRUE,FALSE,TRUE) into myList
+  disposPtr rectA
+  disposPtr rectB
+  if myList = NIL then
+    closeWindow dlogPtr
+    disposPtr box
+    return "Error: Couldn't create List."
+  end if
+  put GetNamedResource("STR ","StartupMBar") into textHand
+  put textHand@@.str255Type into textTwo
+  addResList myList,textTwo
+  if textTwo = NIL then
+    put getNIndString("StartupMbar Strings",1) into textOne
+  else
+    put getNIndString("StartupMbar Strings",2) into textOne
+  end if
+  ParamText textOne,textTwo,"",""
+  showWindow dlogPtr
+  setCursor arrow
+  put FALSE into theQuit
+  setRect box@,-32000,-32000,32000,32000
+  repeat until theQuit = TRUE
+    put waitNextEvent(everyEvent, myEvent, 15, NIL) into haveEvent
+    if haveEvent then
+      if isDialogEvent(myEvent) then
+        if myEvent.what = keyDown then
+          put BitAnd(myEvent.message,charCodeMask) into theCharNum
+          if theCharNum = 13 then -- return
+            put TRUE into theQuit
+            handleMouseDown dlogPtr,1
+            put 1 into itemHit
+          else if theCharNum = 3 then -- enter
+            put TRUE into theQuit
+            handleMouseDown dlogPtr,1
+            put 1 into itemHit
+          else if theCharNum = 27 then -- escape
+            put TRUE into theQuit
+            handleMouseDown dlogPtr,2
+            put 2 into itemHit
+          else if theCharNum = 46 and¬
+          BitAnd(myEvent.modifiers,cmdKey) ≠ 0 then -- cmd.-period
+            put TRUE into theQuit
+            handleMouseDown dlogPtr,2
+            put 2 into itemHit
+          else
+            put dialogSelect(myEvent,dlogPtr,itemHit) into haveEvent
+          end if
+        else if myEvent.what = updateEvt then
+          beginUpdate dlogPtr
+          drawDialog dlogPtr
+          LUpdate dlogPtr@.visRgn,myList
+          GetDItem dlogPtr,4,itemType,itemHandle,box@
+          insetRect box@,-1,-1
+          frameRect box@
+          endUpdate dlogPtr
+        else if myEvent.what = mouseDown then
+          put dialogSelect(myEvent,dlogPtr,itemHit) into haveEvent
+          if haveEvent then
+            if itemHit = 1 then
+              put TRUE into theQuit
+            else if itemHit = 2 then
+              put TRUE into theQuit
+            else if itemHit = 4 then
+              put myEvent.where into myPos
+              globalToLocal myPos
+              if LClick(myPos, myEvent.modifiers, myList) then
+                put TRUE into theQuit
+                handleMouseDown dlogPtr,1
+                put 1 into itemHit
+              end if
+            end if
+          end if
+        end if
+      else
+        if myEvent.what = mouseDown then
+          put findWindow(myEvent.where,thisWindow) into clickPlace
+          if thisWindow = dlogPtr and clickPlace = inDrag then
+            setRect box@,-16000,-16000,16000,16000
+            dragWindow dlogPtr, myEvent.where, box@
+          else
+            sysbeep 10
+          end if
+        else if myEvent.what = updateEvt then
+          sendHcEvent myEvent
+        else if myEvent.what = mouseDown then
+          sysbeep 10
+        else if myEvent.what = keyDown then
+          sysbeep 10
+        end if
+      end if
+    else
+      if isDialogEvent(myEvent) then
+        put dialogSelect(myEvent,dlogPtr,itemHit) into gotEvent
+      end if
+    end if
+  end repeat
+  disposPtr box
+  if itemHit = 1 then
+    put TRUE into nextToo
+    setPt theCell,0,0
+    if LGetSelect(nextToo, theCell, myList) then
+      LFind theOffs, theLength, theCell, myList
+      SetHandleSize textHand, theLength+1
+      HLock textHand
+      LGetCell (textHand@ +1), theLength, theCell, myList
+      HUnlock textHand
+      put numToChar(theLength) into textHand@@.charType -- length byte
+      changedResource textHand
+    end if
+  end if
+  LDispose myList
+  disposDialog dlogPtr
+end startupMBar
+
+on addResList myList,str
+  put countResources("MBAR") into resCount
+  repeat with x = 1 to resCount
+    put GetIndResource("MBAR",x) into ahandle
+    put 0 into anid
+    put "" into aname
+    GetResInfo ahandle,anid,itstype,aname
+    if aname ≠ empty then
+      put LAddRow(1,myList@@.dataBounds.bottom,myList) into rowNum
+      SetPt theCell,0,rowNum
+      put charsHandle(aname) into strHand
+      HLock strHand
+      LSetCell strHand@,getHandleSize(strHand),theCell,myList
+      HUnlock strHand
+      if aname = str then
+        LSetSelect TRUE, theCell, myList
+      end if
+    end if
+  end repeat
+end addResList
+
+function getNamedDialog theName
+  put GetNamedResource("DLOG",theName) into resHand
+  if resHand = NIL then return "Error: Couldn't get dialog resource."
+  GetResInfo resHand,myResID,itstype,aname
+  put GetNewDialog(myResID,NIL,pointer(-1)) into theDialog
+  return theDialog
+end getNamedDialog
+
+on handleMouseDown dlogptr,x
+  put newPtr(8) into box
+  GetDItem dlogPtr,x,itemType,itemHandle,box@
+  if itemType = 4 then -- button
+    hiliteControl itemHandle,1
+    Draw1Control itemHandle
+    put tickCount() into tkStart
+    repeat until tickCount() > tkStart+4
+    end repeat
+  end if
+  disposPtr box
+end handleMouseDown
+
+function getNIndString nme,ind
+  put getNamedResource("STR#",nme) into StrHand
+  if StrHand = NIL then return empty
+  put StrHand@.ptrType into strPtr
+  put ind -1 into counter
+  if counter >= strPtr@.integerType or counter <0 then return empty
+  add 2 to strPtr
+  HLock strHand
+  repeat while counter > 0
+    add charToNum(strPtr@.charType)+1 to strPtr
+    subtract 1 from counter
+  end repeat
+  put strPtr@.str255Type into theString
+  HUnlock strHand
+  return theString
+end getNIndString

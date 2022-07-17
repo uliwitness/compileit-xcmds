@@ -1,0 +1,56 @@
+function dragButtons rectList,buttonKinds
+  if rectList = "?" then
+    return "put dragButtons( <rectList>,<butonKinds> ) into hvOffset"
+  else if rectList = "!" then
+    return "dragButtons 1.1 (c) Copyright 1996 by M. Uli Kusterer, all rights rsvd."
+  end if
+  put newPtr(8) into myRect
+  put newRgn() into myRgn
+  
+  getMouse oldPos -- save mouse loc
+  
+  put frontDocWindow() into winPtr
+  
+  openRgn
+  repeat with x = 1 to (number of lines of rectList)
+    strToRect line x of rectlist,myRect@
+    put line x of buttonKinds into theBKnd
+    if theBKnd = "oval" then
+      frameOval myRect@
+    else if theBKnd = "roundrect" then
+      frameRoundRect myRect@,15,15
+    else if theBKnd = "default" then
+      frameRoundRect myRect@,15,15
+    else if theBKnd = "standard" then
+      frameRoundRect myRect@,10,10
+    else
+      frameRect myRect@
+    end if
+  end repeat
+  closeRgn myRgn
+  setPt myResult,0,0
+  
+  penMode patXOr
+  penPat gray
+  frameRgn myRgn
+  repeat while stillDown()
+    getMouse mousePos
+    if mousePos ≠ oldPos then
+      frameRgn myRgn -- erase
+      offsetRgn myRgn,(loWord(mousePos)-loWord(oldPos)),¬
+      (hiWord(mousePos)-hiWord(oldPos))
+      frameRgn myRgn
+      setPt myResult,(loWord(mousePos)-loWord(oldPos)+loWord(myResult)),¬
+      (hiWord(mousePos)-hiWord(oldPos)+hiWord(myResult))
+      put mousePos into oldPos
+    end if
+  end repeat
+  penPat black
+  penMode patCopy
+  
+  disposPtr myRect
+  disposeRgn myRgn
+  
+  pointToStr myResult,theStr
+  return theStr
+end dragButtons

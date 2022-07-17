@@ -1,0 +1,42 @@
+GLOBAL aRect:R
+
+on xAnswer str,b1,b2,b3
+  setCursor arrow
+  put getNewDialog(135,NIL,pointer(-1)) into winPtr
+  if winPtr = NIL then
+    sysbeep 10
+    return "Error: The DLOG or DITL resource(s) ID 135 are missing."
+  end if
+  paramText str,"","",""
+  getDItem winPtr,1,itemKind,itemHandle,aRect -- ok
+  if b1 = empty then
+    getCTitle itemHandle,b1 -- return right stuff
+  else
+    setCTitle itemHandle,b1
+  end if
+  if b2 = empty then
+    hideDItem winPtr,2
+  else
+    getDItem winPtr,2,itemKind,itemHandle,aRect -- cancel
+    setCTitle itemHandle,b2
+  end if
+  if b3 = empty then
+    hideDItem winPtr,3
+  else
+    getDItem winPtr,3,itemKind,itemHandle,aRect -- sumthin
+    setCTitle itemHandle,b3
+  end if
+  showWindow winPtr
+  put 0 into itemHit
+  repeat until itemHit=1 or itemHit=2 or itemHit=3
+    modalDialog NIL,itemHit
+  end repeat
+  disposDialog winPtr
+  if itemHit = 1 then
+    return "1," & b1
+  else if itemHit = 2 then
+    return "2," & b2
+  else if itemHit = 3 then
+    return "3," & b3
+  end if
+end xAnswer

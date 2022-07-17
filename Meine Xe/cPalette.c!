@@ -1,0 +1,73 @@
+global arect:Rect -- shared global variable of type rect
+
+on cPalette resID,flot -- create window
+  if resID is "?" then return "cPalette resID[,floating]"
+  if first char of the version is not "2" then return "!! HyperCard 2.x required"
+  if flot ≠ true and flot ≠ false then return "Error: Second param must be a boolean."
+  put GetNewXWindow(DLOG,resID,false,flot) into winPtr
+  if winPtr is not nil then
+    selectWindow winPtr
+    SetWRefCon winPtr, 0 -- store initial beeper value
+  else
+    return "Error: Creation of window failed."
+  end if
+end cPalette
+
+on OpenEvent eventInfoPtr
+  SetXWIdleTime eventInfoPtr@.eventWindow, 0 -- beeper is false
+  XWAllowReEntrancy eventInfoPtr@.eventWindow, true, true
+  XWAlwaysMoveHigh eventInfoPtr@.eventWindow, true
+end OpenEvent
+
+on idleEvent eventInfoPtr -- we only get these if beeper is true
+  $ beep
+end idleEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  if propNamePtr@.str255type = "name" then
+    setWTitle eventInfoPtr@.eventWindow,theValue
+  else if propNamePtr@.str255type = "beeper" then
+    if theValue then
+      put 600 into someTicks
+      SetWRefCon eventInfoPtr@.eventWindow, 1
+    else
+      put 0 into someTicks
+      SetWRefCon eventInfoPtr@.eventWindow, 0
+    end if
+    SetXWIdleTime eventInfoPtr@.eventWindow, someTicks
+  else return true
+  return false -- we already processed this one
+end SetPropEvent
+
+function GetPropEvent eventInfoPtr,propNamePtr
+  if propNamePtr@.str255type = "Beeper"
+  then return GetWRefCon(eventInfoPtr@.eventWindow) ≠ 0
+  else exit GetPropEvent -- reject any other properties
+end GetPropEvent
+
+on mouseDownEvent eventInfoPtr
+  if frontWindow() ≠ eventInfoPtr@.eventWindow
+  then selectWindow eventInfoPtr@.eventWindow -- make it active ...
+  get FindWindow(eventInfoPtr@.event.where,eventInfoPtr@.eventWindow)
+  if it is inContent then
+    if DialogSelect(eventInfoPtr@, eventInfoPtr@.eventWindow, iHit) then
+      beep iHit
+    end if
+  else if it is inDrag then
+    put eventInfoPtr@.eventWindow into winPtr
+    setRect arect,-16000,-16000,16000,16000
+    DragWindow winPtr,eventInfoPtr@.event.where,arect
+  else if it is inGoAway then
+    if trackGoAway(eventInfoPtr@.eventWindow,eventInfoPtr@.event.where)
+    then CloseXWindow eventInfoPtr@.eventWindow
+  end if
+end mouseDownEvent
+
+function CursorWithinEvent eventInfoPtr
+  if frontDocWindow() = eventInfoPtr@.eventWindow -- if active
+  then if FindWindow(eventInfoPtr@.event.where,eventInfoPtr@.eventWindow) is inContent then
+    set cursor to arrow
+    return false
+  end if
+  return true -- let HyperCard handle it
+end CursorWithinEvent

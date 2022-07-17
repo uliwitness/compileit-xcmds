@@ -1,0 +1,54 @@
+function getDialog resID,filePath
+  if resID = "?" then
+    return "put|get getDialog(<resID>,<path>)"
+  else if resID = "!" then
+    return "getDialog © 1996 by Uli Kusterer, all rights rsvd."
+  end if
+  put OpenResFile(filePath) into myRefNum
+  if myRefNum <= 0 then
+    return "ERROR: Couldn't open file," && myRefNum
+  end if
+  put "" into str
+  put "" into rectStr
+  put GetNewDialog(resID, NIL, -1) into winPtr
+  if winPtr = NIL then
+    CloseResFile myRefNum
+    return "ERROR: Couldn't get dialog."
+  end if
+  put newPtr(8) into box
+  RectToStr winPtr@.portRect,rectStr
+  put rectStr &return into returnList
+  put winPtr@.handleType[40] into ditlH
+  put ditlH@@.integerType[1] into itemCount
+  add 1 to itemCount
+  repeat with x = 1 to itemCount
+    GetDItem winPtr, x, itemType, dHandle, box@
+    if itemType >= 128 then
+      subtract 128 from itemType
+      put FALSE into disState
+    else
+      put TRUE into disState
+    end if
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 then
+      GetCTitle dHandle,str
+    else if itemType = 8 or itemType = 16 then
+      GetIText dHandle, str
+    else
+      GetIText dHandle, str
+      if length(str) < 2 then
+        beep 1
+      else if length(str) = 1 then
+        put chartonum(char 1 of str) into str
+      else if length(str) = 2 then
+        put ((chartonum(char 1 of str) *256) +chartonum(char 2 of str)) into str
+      end if
+    end if
+    RectToStr box@,rectStr
+    put numtochar(5) & rectStr & numtochar(6) & itemType & numtochar(6) & str & numtochar(6) & disState after returnList
+  end repeat
+  delete char 1 of line 2 of returnList
+  DisposPtr box
+  DisposDialog winPtr
+  CloseResFile myRefNum
+  return returnList
+end getDialog

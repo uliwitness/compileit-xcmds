@@ -1,0 +1,27 @@
+global err:OSErr
+
+on startUseFile mode,myPath
+  if mode = "?" then return help()
+  if mode = "!" then return copyright()
+  if mode = "stop" then
+    put openResFile(myPath) into myRefNum
+    if myRefNum ≠ nil then
+      closeResFile myRefNum
+    else
+      return "Error: Couldn't open file."
+    end if
+  else if mode = "start" then
+    put openResFile(myPath) into myRefNum
+    if myRefNum = nil then
+      return "Error: Couldn't open file."
+    end if
+  end if
+end startUseFile
+
+function help
+  return "startUseFile <'start'|'stop'>,<filePath>"
+end help
+
+function copyright
+  return "1.0, © 1995 by Uli Kusterer, all rights reserved."
+end copyright

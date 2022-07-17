@@ -1,0 +1,148 @@
+GLOBAL myEvent:R[16], myQuit:B, hcMenus:P
+GLOBAL arect:R, cardWindow:P, cardID:I, lastClick:I
+
+on ulisEdit mBarID
+  if mBarID = "?" then
+    return "ulisEdit [mBarID] -- set gUlis_QuitGlobal to exit"
+  else if mBarID = "!" then
+    return "UlisEdit 1.5, © 1995-98 by M. Uli Kusterer, all rights rsvd."
+  end if
+  global gUlis_QuitGlobal
+  put NIL into hcMenus
+  put 0 into lastClick
+  put createMenus( mBarID ) into theResult
+  if theResult ≠ empty then return theResult
+  put FALSE into gUlis_QuitGlobal
+  put FALSE into myQuit
+  put short id of this cd into cardID
+  put the id of card window into cardWindow
+  repeat until myQuit = TRUE
+    put waitNextEvent(everyEvent, myEvent, 15, NIL) into haveEvent
+    if FrontDocWindow() = cardWindow then
+      if haveEvent = TRUE then
+        get myEvent.what
+        if it = mouseDown then
+          mouseDown_Evt
+        else if it = keyDown or it = autoKey then
+          keyDown_Evt
+        else if it = updateEvt then
+          if myEvent.message = cardWindow then
+            update_Evt
+          else
+            sendHcEvent myEvent
+          end if
+        else
+          sendHcEvent myEvent
+        end if
+        checkWhereVR
+      else
+        sendCardMessage "ulisIdle"
+        sendHcEvent myEvent -- also pass idle evts.
+      end if
+      setTheCursor
+    else
+      sendHcEvent myEvent -- pass all evts, we only trap the card.
+    end if
+    if gUlis_QuitGlobal = TRUE then put TRUE into myQuit
+  end repeat
+  if hcMenus <> NIL then
+    sendCardMessage "ulisRmveMenus true"
+    setMenuBar hcMenus
+    drawMenuBar
+    disposHandle hcMenus
+  else
+    sendCardMessage "ulisRmveMenus false"
+  end if
+end ulisEdit
+
+on checkWhereVR
+  put ID of card window into theID
+  if theID ≠ cardWindow then
+    put theID into cardWindow
+    invalRect cardWindow@.portRect
+    sendCardMessage "ulisWindowChange"
+  else
+    put short ID of this card into theID
+    if theID ≠ cardID then
+      invalRect cardWindow@.portRect
+      put theID into cardID
+      sendCardMessage "ulisCardChange"
+    end if
+  end if
+end checkWhereVR
+
+on setTheCursor
+  global gUlis_Cursor
+  GetMouse mousePos
+  if ptInRgn(mousePos,cardWindow@.visRgn) then
+    put getCursor(gUlis_Cursor) into myCurs
+    if myCurs = NIL then
+      setCursor arrow
+    else
+      setCursor myCurs@@
+    end if
+  else
+    setCursor arrow
+  end if
+end setTheCursor
+
+on mouseDown_Evt
+  put findWindow(myEvent.where,winPtr) into thePart
+  if thePart = inMenuBar then
+    sendHcEvent myEvent
+  else if thePart = inContent and winPtr = cardWindow then
+    put myEvent.where into myPos
+    globalToLocal myPos
+    PointToStr myPos,theStr
+    if (myEvent.when - lastClick) < DoubleTime then
+      sendCardMessage "ulisDoubleClick" && quote & theStr & quote
+    else
+      sendCardMessage "ulisClick" && quote & theStr & quote
+    end if
+    put myEvent.when into lastClick
+  else if thePart = inGoAway and winPtr = cardWindow then
+    sendCardMessage "ulisCloseWindow"
+    sendHcEvent myEvent
+  else
+    sendHcEvent myEvent
+  end if
+end mouseDown_Evt
+
+on keyDown_Evt
+  sendHcEvent myEvent
+end keyDown_Evt
+
+on update_Evt
+  setPort cardWindow
+  beginUpdate cardWindow
+  sendHcMessage "go this card"
+  if getNamedResource("XCMD","ulisUpdate") ≠ NIL then
+    ulisUpdate cardWindow
+  end if
+  endUpdate cardWindow
+end update_Evt
+
+function createMenus mBarID
+  debug checkpoint
+  hiliteMenu 0
+  put getMenuBar() into hcMenus
+  if mBarID+0 <> 0 then
+    put GetResource("MBAR",mBarID) into menuListRes
+    if menuListRes = NIL then
+      return "Error: an 'MBAR' resource with that ID doesn't exist."
+    end if
+    put menuListRes@@.integerType[1] into appleMenuID -- [0] is counter.
+    put GetNewMbar(mBarID) into myMenus
+    if myMenus = NIL then
+      return "Error: Couldn't load specified menu bar."
+    end if
+    setMenuBar myMenus
+    disposHandle myMenus
+    AddResMenu GetMHandle(appleMenuID), "DRVR"
+    sendCardMessage "ulisResetMenus true"
+    drawMenuBar
+  else
+    sendCardMessage "ulisResetMenus false"
+  end if
+  return empty
+end createMenus

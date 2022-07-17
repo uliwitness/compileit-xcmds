@@ -1,0 +1,4 @@
+function getMenuDisable
+  PointToStr MenuDisable,theStr
+  return theStr
+end getMenuDisable

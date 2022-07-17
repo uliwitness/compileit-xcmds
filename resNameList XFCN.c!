@@ -1,0 +1,28 @@
+GLOBAL kind:T
+
+function resNameList resKind,onlyLocal
+  if resKind = "?" then
+    return "put|get resNameList(<type>[,<onlyLocalBool>])"
+  else if resKind = "!" then
+    return "resNameList 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  if number of chars of resKind > 4 then return "ERROR: Invalid res type in param 1."
+  put resKind into kind
+  put countResources(kind) into resCount
+  repeat with x = 1 to resCount
+    if commandPeriod() then
+      return "Error: User cancelled."
+    end if
+    put GetIndResource(kind,x) into ahandle
+    if HomeResFile(ahandle) <> CurResFile() and onlyLocal = TRUE then next repeat
+    if ahandle <> nil then
+      put 0 into anid
+      put space into aname
+      GetResInfo ahandle,anid,itstype,aname
+      put anid into theid
+      if aname ≠ empty then put return & aname after ress
+    end if
+  end repeat
+  delete line 1 of ress
+  return ress
+end resNameList

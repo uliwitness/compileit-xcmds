@@ -1,0 +1,65 @@
+on exportCField theID,resID,fPath
+  if theID = "?" then
+    return "exportCField <fldID>,<resID>,<filePath>"
+  else if theID = "!" then
+    return "exportCField 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  createResFile fPath
+  put openResFile(fPath) into myRefNum
+  if resError() ≠ 0 then
+    return "ERROR: Couldn't open file."
+  end if
+  useResFile myRefNum
+  put getFieldTE(TRUE,theID,0,"") into myTEHandle
+  if myTEHandle = NIL then
+    closeResFile myRefNum
+    return "Error: Couldn't get field."
+  end if
+  put myTEHandle@@.hText into myTxtHand
+  put handToHand(myTxtHand) into err
+  if err ≠ 0 then
+    TEDispose myTEHandle
+    closeResFile myRefNum
+    return "Error: Couldn't extract Text."
+  end if
+  put getResource("TEXT",resID) into delRes
+  if delRes ≠ NIL then
+    rmveResource delRes
+  end if
+  put getNamedResource("TEXT",(name of cd fld id theID)) into delRes
+  if delRes ≠ NIL then
+    rmveResource delRes
+  end if
+  AddResource myTxtHand,"TEXT",resID,(name of cd fld id theID)
+  if resError() ≠ NIL then
+    TEDispose myTEHandle
+    closeResFile myRefNum
+    disposHandle myTxtHand
+    return "Error: Couldn't write Text."
+  end if
+  writeResource myTxtHand
+  releaseResource myTxtHand
+  put 0 into myTEHandle@@.selStart
+  put myTEHandle@@.teLength into myTEHandle@@.selEnd
+  put GetStylScrap(myTEHandle) into myTEStyles
+  put getResource("styl",resID) into delRes
+  if delRes ≠ NIL then
+    rmveResource delRes
+  end if
+  put getNamedResource("styl",(name of cd fld id theID)) into delRes
+  if delRes ≠ NIL then
+    rmveResource delRes
+  end if
+  AddResource myTEStyles,"styl",resID,(name of cd fld id theID)
+  if resError() ≠ NIL then
+    TEDispose myTEHandle
+    closeResFile myRefNum
+    disposHandle myTxtHand
+    disposHandle myTEStyles
+    return "Error: Couldn't write styles."
+  end if
+  writeResource myTEStyles
+  releaseResource myTEStyles
+  TEDispose myTEHandle
+  closeResFile myRefNum
+end exportCField

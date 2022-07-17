@@ -1,0 +1,75 @@
+GLOBAL myRect:R[8], tempRect:R[8], myLimit:R[8], bothRect:R[8]
+GLOBAL mousePos:L, oldPos:L
+
+function dragRect theRec,bounds
+  if theRect = "?" then
+    return "put|get dragRect(<moveRect>,<boundsRect>)"
+  else if theRect = "!" then
+    return "dragRect 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  setRect myRect,item 1 of theRec,item 2 of theRec,item 3 of theRec,item 4 of theRec
+  setRect myLimit,item 1 of bounds,item 2 of bounds,item 3 of bounds,item 4 of bounds
+  localToGlobal myRect.longIntType[1]
+  localToGlobal myRect.longIntType[2]
+  localToGlobal myLimit.longIntType[1]
+  localToGlobal myLimit.longIntType[2]
+  getWMgrPort screenPort
+  getPort currentPort
+  setPort screenPort
+  put newRgn() into svClip
+  getClip svClip
+  clipRect myLimit
+  getMouse oldPos
+  penPat gray
+  penMode srcXor
+  frameRect myRect
+  repeat while stillDown() = TRUE
+    getMouse mousePos
+    if oldPos ≠ mousePos then
+      put myRect.longIntType[1] into tempRect.longIntType[1]
+      put myRect.longIntType[2] into tempRect.longIntType[2]
+      offsetRect tempRect, mousePos.integerType[2] - oldPos.integerType[2], mousePos.integerType[1] - oldPos.integerType[1]
+      unionRect myLimit, tempRect, bothRect
+      if equalRect(myLimit,bothRect) then
+        penMode srcXor
+        frameRect myRect
+        frameRect tempRect
+        put mousepos into oldPos
+        put tempRect.longIntType[1] into myRect.longIntType[1]
+        put tempRect.longIntType[2] into myRect.longIntType[2]
+      else
+        if tempRect.left < myLimit.left then
+          put tempRect.left - myLimit.left into diff
+          offsetRect tempRect,-diff,0
+          add -diff to mousePos.integerType[2]
+        else if tempRect.right > myLimit.right then
+          put tempRect.right - myLimit.right into diff
+          offsetRect tempRect,-diff,0
+          add -diff to mousePos.integerType[2]
+        end if
+        if tempRect.top < myLimit.top then
+          put tempRect.top - myLimit.top into diff
+          offsetRect tempRect,0,-diff
+          add -diff to mousePos.integerType[1]
+        else if tempRect.bottom > myLimit.bottom then
+          put tempRect.bottom - myLimit.bottom into diff
+          offsetRect tempRect,0,-diff
+          add -diff to mousePos.integerType[1]
+        end if
+        frameRect myRect
+        frameRect tempRect
+        put mousePos into oldPos
+        put tempRect.longIntType[1] into myRect.longIntType[1]
+        put tempRect.longIntType[2] into myRect.longIntType[2]
+      end if
+    end if
+  end repeat
+  frameRect myRect
+  setClip svClip
+  disposeRgn svClip
+  penNormal -- don't confuse the window mgr.
+  setPort currentPort
+  globalToLocal myRect.longIntType[1]
+  globalToLocal myRect.longIntType[2]
+  return myRect.left & "," & myRect.top & "," & myRect.right & "," & myRect.bottom
+end dragRect

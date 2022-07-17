@@ -1,0 +1,18 @@
+-- ©1992 Heizer Software. All Rights Reserved.
+-- Registered users of CompileIt! may freely use this code for any purpose they choose.
+
+-- Display a standard SFPutFile dialog and return both the filename and vRefNum. Under System 7, if you set the loc of the putfile dialog to -1,-1, it will automatically be centered but on early systems you must supply the coordinates. You might want to improve on this XFCN so that it automatically centers itself under all systems.
+
+GLOBAL SFReply:Record[76]
+function SimplePutFile myLoc,origName,prompt
+  if myLoc is empty then setPt myPt, -1,-1 -- center automatically under newer systems (but not older)
+  else setPt myPt, item 1 of myLoc, item 2 of myLoc
+  SFPutFile myPt,prompt,origName,nil,SFReply
+  put SFReply.good into isGood
+  put SFReply.vRefNum into WhatVol
+  put SFReply.fName into WhatFile
+  if isGood then
+    get setVol(nil,WhatVol)
+    return whatFile&","&whatVol
+  end if
+end SimplePutFile

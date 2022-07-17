@@ -1,0 +1,11 @@
+function numToDual nb,theFirstNBs
+  repeat with i = 1 to (number of items of theFirstNBs)
+    if "-" is in (nb - (item i of theFirstNBs)) then
+      put 0 into char i of dualNb
+    else
+      put 1 into char i of dualNb
+      subtract (item i of theFirstNBs) from nb
+    end if
+  end repeat
+  return (dualNB)
+end numToDual

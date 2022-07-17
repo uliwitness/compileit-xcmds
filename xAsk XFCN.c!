@@ -1,0 +1,44 @@
+GLOBAL aRect:R
+
+function xAsk str,ans,b1,b2
+  if str = "?" then
+    return "put|get xAsk(<prompt>[,<answer>][,<okName>][,<canName>])"
+  else if str = "!" then
+    return "xAsk 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  setCursor arrow
+  put getNewDialog(134,NIL,pointer(-1)) into winPtr
+  if winPtr = NIL then
+    sysbeep 10
+    return "Error: DLOG or DITL resource(s) ID 134 are missing."
+    exit xAsk
+  end if
+  paramText str,"","",""
+  getDItem winPtr,1,itemKind,itemHandle,aRect -- cancel
+  if b1 ≠ empty then
+    setCTitle itemHandle,b1
+  else
+    getCTitle itemHandle,b1 -- return the right stuff
+  end if
+  getDItem winPtr,2,itemKind,itemHandle,aRect -- cancel
+  if b2 ≠ empty then
+    setCTitle itemHandle,b2
+  else
+    getCTitle itemHandle,b2 -- return the right stuff
+  end if
+  getDItem winPtr,4,itemKind,itemHandle,aRect -- answer
+  setIText itemHandle,ans
+  selIText winPtr,4,0,32767
+  showWindow winPtr
+  put 0 into itemHit
+  repeat until itemHit=1 or itemHit=2
+    modalDialog NIL,itemHit
+  end repeat
+  getIText itemHandle,ans
+  disposDialog winPtr
+  if itemHit = 1 then
+    return "1," & b1 &return& ans
+  else if itemHit = 2 then
+    return "2," & b2 &return& ans
+  end if
+end xAsk

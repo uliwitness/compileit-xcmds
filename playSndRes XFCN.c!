@@ -1,0 +1,25 @@
+function playSndRes mode,theName,theCh
+  if mode = "new" then
+    put NIL into mySChannel
+    put SndNewChannel(mySChannel,0,0,NIL) into anErr
+    if anErr ≠ 0 then return "Error: Couldn't create new Channnel."
+    return mySChannel
+  else if mode = "play" then
+    put theCh+0 into mySChannel
+    put getNamedResource("snd ",theName) into mySnd
+    if mySnd = NIL then return "Error: Couldn't load sound resource."
+    put sndPlay(mySChannel,mySnd,TRUE) into anErr
+    if anErr ≠ 0 then
+      return "Error: Couldn't play sound."
+    end if
+  else if mode = "remove" then
+    put theName+0 into mySChannel
+    put SndDisposeChannel(mySChannel,TRUE) into anErr
+  else if mode = "?" then
+    return "put|get playSndRes(NEW) : channelID" &return&¬
+    "put|get playSndRes(PLAY,<sndName>,<channelID>) : empty" &return&¬
+    "put|get playSndRes(REMOVE,<channelID>) : empty"
+  else if mode = "!" then
+    return "playSndRes 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+end playSndRes

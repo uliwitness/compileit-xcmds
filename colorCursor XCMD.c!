@@ -1,0 +1,18 @@
+on colorCursor theID
+  if theID = "?" then return "colorCursor <resID>"
+  if theID = "!" then return "colorCursor 1.0, © 1995 by Uli Kusterer."
+  if not isInteger(theID) then
+    return "Error: Invalid Cursor ID."
+  end if
+  put getCCursor(theID +0) into theCursor
+  setCCursor theCursor
+  disposCCursor theCursor
+end colorCursor
+
+function isInteger nb
+  if nb = empty then return FALSE
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then return FALSE
+  end repeat
+  return TRUE
+end isInteger

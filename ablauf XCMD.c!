@@ -1,0 +1,149 @@
+on ablauf myName,myTxt,myState,myTime
+  if paramCount() = 1 then
+    if myName = "?" then
+      return "ablauf <name>,<text>,<state>,<text2>"
+    else if myName = "!" then
+      return "© 1996 by Uli Kusterer, all rights reserved."
+    end if
+  else if paramCount() > 4 or paramCount() = 0 then
+    return "Error: Wrong number of arguments to Ablauf."
+  end if
+  GetXResInfo resFile,resID,rType,theName
+  put GetNamedResource("DLOG",theName) into resHand
+  if resHand = NIL then return "Error: Couldn't get dialog resource."
+  GetResInfo resHand,myResID,itstype,aname
+  put GetNewXWindow("DLOG",myResID,TRUE,TRUE) into winPtr
+  if winPtr = NIL then -- first try without CQD
+    put GetNewXWindow("DLOG",myResID,FALSE,TRUE) into winPtr
+    if winPtr = NIL then
+      return "Error: Couldn't create window."
+    end if
+  end if
+  SetWTitle winPtr,myName
+  put myState+0 into winPtr@.refCon.integerType[1]
+  put 100 into winPtr@.refCon.integerType[2]
+  put newPtr(8) into box
+  -- set initial text
+  GetDItem winPtr,1,itemType,itemHandle,box@
+  SetIText itemHandle,myTxt
+  -- set initial time
+  GetDItem winPtr,3,itemType,itemHandle,box@
+  SetIText itemHandle,myTime
+  disposPtr box
+  ShowWindow winPtr
+  global gUserCancel
+  put FALSE into gUserCancel
+end ablauf
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  XWAllowReEntrancy winPtr,TRUE,TRUE
+  SetXWIdleTime winPtr,0
+end OpenEvent
+
+on CloseEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  return TRUE
+end CloseEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put eventInfoPtr@.eventWindow into winPtr
+  put propNamePtr@.str255Type into property
+  if property = "text" then
+    put newPtr(8) into box
+    GetDItem winPtr,1,itemType,itemHandle,box@
+    SetIText itemHandle,theValue
+    InvalRect box@
+    disposPtr box
+  else if property = "time" then
+    put newPtr(8) into box
+    GetDItem winPtr,3,itemType,itemHandle,box@
+    SetIText itemHandle,theValue
+    InvalRect box@
+    disposPtr box
+  else if property = "state" then
+    put theValue+0 into winPtr@.refCon.integerType[1]
+    put newPtr(8) into box
+    GetDItem winPtr,2,itemType,itemHandle,box@
+    InvalRect box@
+    disposPtr box
+  else if property = "max" or property = "maximum" then
+    put theValue+0 into winPtr@.refCon.integerType[2]
+    put newPtr(8) into box
+    GetDItem winPtr,2,itemType,itemHandle,box@
+    InvalRect box@
+    disposPtr box
+  else return TRUE
+  if button() = TRUE then
+    GetMouse myPos
+    localToGlobal myPos
+    userHit winPtr,myPos
+  end if
+  return FALSE
+end SetPropEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  beginUpdate winPtr
+  ForeColor blackColor
+  drawDialog winPtr
+  put newPtr(8) into box
+  GetDItem winPtr,2,itemType,itemHandle,box@
+  FrameRect box@
+  insetRect box@,1,1
+  ForeColor redColor
+  put box@.right into oldRight
+  put box@.right - box@.left into strecke
+  put (strecke / winPtr@.refCon.integerType[2])^1 into wert
+  put wert * winPtr@.refCon.integerType[1] into wert
+  put box@.left +round(wert) into box@.right
+  paintRect box@
+  ForeColor blackColor
+  put box@.right +1 into box@.left
+  put oldRight into box@.right
+  eraseRect box@
+  disposPtr box
+  endUpdate winPtr
+end updateEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  userHit winPtr,eventInfoPtr@.event.where
+end mouseDownEvent
+
+on userHit winPtr,myPos
+  put myPos into herePos
+  globalToLocal herePos
+  if frontWindow() ≠ winPtr then
+    activateWindow winPtr
+  end if
+  put FindWindow(myPos,theWindow) into temp
+  if theWindow ≠ winPtr then
+    sysbeep 30
+    exit userHit
+  end if
+  if temp is inContent then
+    put newPtr(8) into box
+    GetDItem winPtr,4,itemType,itemHandle,box@
+    if PtInRect(herePos,box@) then
+      if trackControl(itemHandle,myPos,NIL) = inButton then
+        global gUserCancel
+        put TRUE into gUserCancel
+      end if
+    end if
+    disposPtr box
+  else if temp is inDrag then
+    put newPtr(8) into box
+    setRect box@,-16000,-16000,16000,16000
+    DragWindow winPtr,myPos,box@
+    disposPtr box
+  else if temp is inGoAway then
+    if trackGoAway(winPtr,myPos) then
+      CloseXWindow winPtr
+    end if
+  else
+    sysbeep 30
+  end if
+end userHit
+
+

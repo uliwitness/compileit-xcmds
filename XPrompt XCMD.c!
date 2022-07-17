@@ -1,0 +1,141 @@
+GLOBAL aRect:Rect[8] -- temp rect structure
+
+on XPrompt wNam,string,myHeight,myWidth,symb
+  if wNam = "?" and paramCount() = 1 then
+    return "xPrompt <name>[,<text>[,<height>[,<width>[,<icon>]]]]"
+  else if wNam = "!" and paramCount() = 1 then
+    return "xPrompt 1.2, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  put the rect of the card window into myRect
+  put item 1 of myRect into x
+  put item 2 of myRect into y
+  put item 3 of myRect into x1
+  put item 4 of myRect into y1
+  if myWidth is empty then put 340 into myWidth
+  if myHeight is empty then put 48 into myHeight
+  put (x1 - (x+myWidth)) div 2 into L
+  put (y1 -(y+myHeight)) div 2 into T
+  setRect aRect, L,T,L+myWidth,T+myHeight
+  localToGlobal arect.LongIntType[1]
+  localToGlobal arect.LongIntType[2]
+  getPort savePort
+  -- change this next line to adjust window name, style, etc.
+  put NewXWindow(aRect,wNam,true,dBoxProc,false,true) into winPtr -- open the window
+  if winPtr is not nil then
+    selectWindow winPtr
+    if string is not empty then put GetNewTextHandle(string) into hand1 else put nil into hand1
+    put NewHandle(10) into refHandle -- handle to our private data structure
+    put hand1 into refHandle@@.longIntType[1] -- store prompt string
+    put symb+0 into refHandle@@.integerType[5] -- store icon ID
+    setPort winPtr
+    GetFNum "Geneva",num
+    TextFont num -- Geneva
+    TextSize 9 -- 9 point
+    TextFace 1 -- bold
+    setWRefCon winPtr,refHandle -- store our private data
+    InvalRect winPtr@.portRect -- force an update event so we draw the prompt string
+    setPort savePort
+  end if
+end XPrompt
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  XWAllowReEntrancy winPtr, true, true -- tell HC we are reentrant
+  XWAlwaysMoveHigh winPtr, false
+  SetXWIdleTime winPtr,0
+end OpenEvent
+
+on CloseEvent eventInfoPtr
+  put GetWRefCon(eventInfoPtr@.eventWindow) into dataHand -- get private data
+  if dataHand is not nil then -- if present then dispose of it
+    if dataHand@@.longIntType[1] is not nil then disposHandle dataHand@@.longIntType[1]
+    if dataHand@@.longIntType[2] is not nil then disposHandle dataHand@@.longIntType[2]
+    disposHandle dataHand
+  end if
+  return true -- tell HC it's ok to close us
+end CloseEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put propNamePtr@.str255Type into property
+  put eventInfoPtr@.eventWindow into winPtr
+  put GetWRefCon(winPtr) into dataHand
+  if property = "name" then setWTitle winPtr,theValue
+  else if property = "text" then prompt winPtr,theValue
+  else if property = "clear" then -- erase the window
+    eraseRect eventInfoPtr@.eventWindow@.portRect
+  else if property = "Icon" then -- change icon
+    put theValue+0 into dataHand@@.integerType[5]
+    SetRect aRect,5,5,37,37
+    invalRect aRect
+  else
+    return true
+  end if
+  return false -- we already processed this one
+end SetPropEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put GetWRefCon(winPtr) into dataHand
+  BeginUpdate winPtr
+  put dataHand@@.integerType[5] into iconID -- extract icon id
+  showColorIcon iconID
+  Prompt winPtr,empty -- redraw last prompt (current text)
+  EndUpdate winPtr
+end updateEvent
+
+on Prompt winPtr,newString -- only update changes to cut down flashing
+  setPort winPtr
+  put GetWRefCon(winPtr) into dataHand
+  if dataHand is not nil then
+    if dataHand@@.longIntType[1] is not nil then
+      put HyperCardText(dataHand@@.longIntType[1]) into prevString -- retrieve previous value
+      put the number of lines in prevString into y
+      if newString is empty then
+        put prevString into newString
+        put empty into prevString
+      end if
+      put GetNewTextHandle(newString) into dataHand@@.longIntType[1] -- get handle to new value
+      setWRefCon winPtr,dataHand -- store for next time
+    else exit prompt
+  else exit prompt
+  put winPtr@.portRect.LongIntType[1] into aRect.LongIntType[1] -- get topLeft of window
+  put winPtr@.portRect.LongIntType[2] into aRect.LongIntType[2] -- get bottomRight of window
+  put aRect.integerType[2] + 42 into aRect.integerType[2]
+  put the number of lines in newString+1 into x
+  repeat with i=1 to x
+    if line i of prevString  = line i of newString then next repeat
+    put line i of newString into nS
+    put charsHandle(nS) into stringHand -- get handle to changed line of text
+    put (i-1)*13 into aRect.integerType[1] -- top of line
+    put i*13 into aRect.integerType[3] -- bottom of line
+    TextBox stringHand@.ptrType,getHandleSize(stringHand),aRect,teJustCenter -- draw it
+  end repeat
+  get y - x -- were there more lines last time?
+  if it > 0 then -- yes
+    put aRect.integerType[3] into aRect.integerType[1] -- bottom of last line of new text
+    add (it+1)*13 to aRect.integerType[3] -- bottom of last line of previous text
+    EraseRect aRect -- erase 'em
+  end if
+  setPort savePort
+end Prompt
+
+on showIcon iconID
+  put GetResource("ICON",iconID) into theIcon
+  if theIcon ≠ nil then -- icon load successfull?
+    SetRect aRect,5,5,37,37
+    eraseRect aRect
+    PlotIcon aRect,theIcon
+  end if
+end showIcon
+
+on showColorIcon iconID
+  put GetCIcon(iconID) into theIcon
+  if theIcon ≠ nil then -- there is a cicn
+    SetRect aRect,5,5,37,37
+    eraseRect aRect
+    PlotCIcon aRect,theIcon
+    ReleaseResource theIcon
+  else -- there is no cicn, try B/W version
+    showIcon iconID
+  end if
+end showColorIcon

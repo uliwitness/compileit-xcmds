@@ -1,0 +1,810 @@
+GLOBAL kind:T, arect:R, aPenState:R[18], minMaxSize:R, myEvent:R[16]
+GLOBAL newSize:longInt, newWidth:integer, newHeight:integer
+
+Constant kSideBarWidth = 36
+Constant kTopBarHeight = 40
+Constant kIconHeight   = 32
+Constant kIconDistance = 5
+Constant kMaxListWidth = 250
+Constant kCmdKeyChar   = "⌘"
+Constant kWindowFontID = 1600
+Constant kLineHeight   = 12
+
+on menuEditor resID
+  if resID = "?" then
+    return "menuEditor <resID>"
+  else if resID = "!" then
+    return "menuEditor 1.0, © 1995-96 by Uli Kusterer, all rights reserved."
+  end if
+  put getMenu(resID+0) into myMenu
+  if myMenu = NIL then return "Error: Couldn't load menu."
+  put "Menu ID" && resID into wNam
+  if value("there is a window" && quote & wnam & quote) then return "Error: Window already exists."
+  setRect arect,100,100,300,280
+  put newXWindow(arect,wNam,TRUE,8,TRUE,FALSE) into winPtr
+  if winPtr = NIL then return "Error: couldn't create window."
+  put newHandle(56) into myData
+  if myData = NIL then
+    setWRefCon winPtr,NIL
+    closeXWindow winPtr
+    return "Error: couldn't create privates."
+  end if
+  put 1 into myData@@.integerType[1] -- selectedButton
+  put 0 into myData@@.integerType[2] -- lineCount
+  setWRefCon winPtr,myData
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.right -15 into arect.left
+  subtract 14 from arect.bottom
+  add kTopBarHeight to arect.top
+  add 1 to arect.right
+  put newControl(winPtr, arect, "", TRUE, 0, 0, 0, 16, 0) into theControl
+  put theControl into myData@@.longIntType[10] -- scrollbar handle
+  put NIL into myData@@.longIntType[11] -- content pict handle
+  put 0 into myData@@.integerType[23] -- selectedLine
+  put 0 into myData@@.integerType[24] -- flags
+  put NIL into myData@@.longIntType[13] -- content text handle
+  put CurResFile() into myData@@.integerType[27] -- No. of current resFile
+  put resID+0 into myData@@.integerType[28] -- ID of menu resource
+end menuEditor
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  SetXWIdleTime winPtr,60
+  XWAllowReEntrancy winPtr, true, true
+  setPort winPtr
+  textFont kWindowFontID
+  textSize 9
+  beginEdit_Evt winPtr
+end OpenEvent
+
+on idleEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  put CurResFile() into theNum
+  if myData@@.integerType[27] ≠ theNum then -- stack has changed
+    updateContents winPtr
+    put theNum into myData@@.integerType[27]
+  end if
+end idleEvent
+
+function closeEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if myData ≠ NIL then
+    disposHandle myData
+  end if
+  return true
+end closeEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put eventInfoPtr@.eventWindow into winPtr
+  put propNamePtr@.str255type into theProp
+  put getWRefCon(winPtr) into myData
+  if theProp = "name" then
+    setWTitle winPtr,theValue
+  else if theProp = "hilitedButton" then
+    put theValue+0 into myData@@.integerType[1]
+    invalRect winPtr@.portRect
+  else if theProp = "hilitedLine" then
+    put theValue+0 into myData@@.integerType[23]
+    invalRect winPtr@.portRect
+  else return true
+  return false -- we already processed this one
+end SetPropEvent
+
+function GetPropEvent eventInfoPtr,propNamePtr
+  put propNamePtr@.str255type into theProp
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if theProp = "hilitedButton" then
+    put myData@@.integerType[1] into theNum
+    return theNum
+  else if theProp = "hilitedLine" then
+    put myData@@.integerType[23] into theNum
+    return theNum
+  else if theProp = "hilitedText" then
+    put HyperCardText(myData@@.longIntType[13]) into myText
+    HyperCardOwns myText -- prevent disposal
+    if myData@@.integerType[23] = 0 then return empty
+    put line (myData@@.integerType[23]) of myText into theText
+    return theText
+  else if theProp = "text" then
+    put HyperCardText(myData@@.longIntType[13]) into myText
+    HyperCardOwns myText -- prevent disposal
+    put myText into theText
+    return theText
+  else
+    exit GetPropEvent -- reject any other properties
+  end if
+end GetPropEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.event.where into mousePos
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if frontDocWindow() ≠ winPtr and¬
+  bitAnd(eventInfoPtr@.event.modifiers, cmdKey) = 0 then
+    selectWindow winPtr
+  end if
+  get FindWindow(mousePos,winPtr)
+  if it is inContent then
+    clickInWindow winPtr,mousePos
+  else if it is inDrag then
+    setRect arect,-16000,-16000,16000,16000
+    DragWindow winPtr,mousePos,arect
+  else if it is inGoAway then
+    if trackGoAway(winPtr,mousePos) then
+      CloseXWindow winPtr
+    end if
+  else if it is inGrow then
+    changeWinSize winPtr,mousePos
+  else if it is inZoomIn or it is inZoomOut then
+    if trackBox(winPtr,mousePos, it) then
+      zoomWindow winPtr,it,TRUE
+      adjust_Scrollbar winPtr
+    end if
+  end if
+end mouseDownEvent
+
+on beginEdit_Evt winPtr
+  put getWRefCon(winPtr) into myData
+  if bitAnd(myData@@.integerType[24],1) = 0
+  then add 1 to myData@@.integerType[24]
+  beginXWedit winPtr
+end beginEdit_Evt
+
+on changeWinSize winPtr,mousePos
+  put getWRefCon(winPtr) into myData
+  put 160 into minMaxSize.top
+  put 160 into minMaxSize.left
+  put 32000 into minMaxSize.bottom
+  put 32000 into minMaxSize.right
+  put growWindow(winPtr,mousePos,minMaxSize) into newSize
+  if newSize ≠ nil then
+    put LoWord(newSize) into newWidth
+    put HiWord(newSize) into newHeight
+    SizeWindow winPtr, newWidth, newHeight, FALSE
+    adjust_Scrollbar winPtr
+    invalRect winPtr@.portRect
+  end if
+end changeWinSize
+
+on adjust_Scrollbar winPtr
+  put getWRefCon(winPtr) into myData
+  put myData@@.longIntType[10] into theControl
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.right -15 into arect.left
+  subtract 14 from arect.bottom
+  add 1 to arect.right
+  add kTopBarHeight to arect.top
+  hideControl theControl
+  moveControl theControl,arect.left,arect.top
+  sizeControl theControl,arect.right - arect.left,arect.bottom - arect.top
+  put myData@@.longIntType[11] into myPic
+  put myPic@@.integerType[4] - myPic@@.integerType[2] into txHeight
+  subtract winPtr@.portRect.bottom - winPtr@.portRect.top from txHeight
+  add (kTopBarHeight +15) to txHeight -- top & bottom bars
+  if txHeight < 0 then put 0 into txHeight
+  setCtlMax theControl,txHeight
+  showControl theControl
+end adjust_Scrollbar
+
+on clickInWindow winPtr,myPos
+  put getWRefCon(winPtr) into myData
+  beginEdit_Evt winPtr
+  globalToLocal myPos
+  setRect aRect,4,4,36,36 -- icon
+  if ptInRect(myPos,aRect) then
+    put getMenu(myData@@.integerType[28]) into myMenu
+    if myMenu ≠ NIL then
+      put myData@@.integerType[23] into theItem
+      insMenuItem myMenu,"new item",theItem
+      changedResource myMenu
+      updateContents winPtr
+    else
+      sysbeep 30
+      put showHcAlert(1,"Couldn't create a new item because the menu" &&¬
+      "couldn't be loaded.") into temp
+    end if
+  else
+    doContentsClick winPtr,myPos
+  end if
+end clickInWindow
+
+on updateContents winPtr
+  put winPtr@.refCon into myData
+  killPicture myData@@.longIntType[11]
+  put NIL into myData@@.longIntType[11]
+  invalRect winPtr@.portRect
+end updateContents
+
+-- keep myScrollAction before doContentsClick, so compileIt! sees it.
+
+pascal on myScrollAction theControl:LongInt,thePart:Integer
+  put 0 into amount
+  put theControl@@.contrlOwner into winPtr
+  put getCRefCon(theControl) into lastTime
+  put getWRefCon(winPtr) into myData
+  if bitAnd(myData@@.integerType[24],2) ≠ 0 then
+    subtract 2 from myData@@.integerType[24]
+  end if
+  if tickCount() > lastTime then
+    if thePart = inPageUp then
+      subtract winPtr@.portRect.bottom -(kTopBarHeight +15) from amount
+    else if thePart = inPageDown then
+      add winPtr@.portRect.bottom -(kTopBarHeight+15) to amount
+    else if thePart = inUpButton then
+      subtract kLineHeight from amount
+    else if thePart = inDownButton then
+      add kLineHeight to amount
+    end if
+    put getCtlValue(theControl) into theValue
+    setCtlValue theControl,theValue +amount
+    setCRefCon theControl,tickCount()+keyRepThresh
+    if getCtlValue(theControl) ≠ theValue then
+      drawGraph TRUE,winPtr,myData
+    end if
+  end if
+end myScrollAction
+
+on doContentsClick winPtr,myPos
+  put findControl(myPos, winPtr, theControl) into thePart
+  put getWRefCon(winPtr) into myData
+  if thePart = 0 then
+    doListClick winPtr,myPos
+  else if thePart = inThumb then
+    put getCtlValue(theControl) into oldValue
+    put trackControl(theControl, myPos, NIL) into temp
+    put getCtlValue(theControl) into newValue
+    if oldValue ≠ newValue then
+      invalRect winPtr@.portRect
+    end if
+  else
+    put @myScrollAction into actionProc
+    put TrackControl(theControl, myPos, actionProc) into temp
+  end if
+end doContentsClick
+
+on doListClick winPtr,myPos
+  put getWRefCon(winPtr) into myData
+  put myData@@.longIntType[10] into theControl
+  put getCRefCon(theControl)+DoubleTime into lastTime
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  add kTopBarHeight+1 to arect.top
+  subtract 15 from arect.right
+  if ptInRect(myPos,arect) then
+    if tickCount() > lastTime or bitAnd(myData@@.integerType[24],2) = 0 then
+      put hiWord(myPos) into vPos
+      add getCtlValue(theControl) to vPos
+      subtract kTopBarHeight from vPos
+      put vPos div 12 into theLine
+      add 1 to theLine
+      if theLine ≠ myData@@.integerType[23] and theLine ≤ myData@@.integerType[2] then
+        put theLine into myData@@.integerType[23]
+        drawGraph TRUE,winPtr,myData
+      else if theLine > myData@@.integerType[2] then
+        put myData@@.integerType[2] into myData@@.integerType[23]
+        invalRect arect
+      else
+        put 0 into myData@@.integerType[23]
+      end if
+      setCRefCon theControl,tickCount()
+    else if bitAnd(myData@@.integerType[24],2) ≠ 0 then -- is double click
+      if myData@@.integerType[23] ≠ 0 then
+        doEditItem winPtr,myData@@.integerType[23]
+      else
+        updateContents winPtr
+      end if
+    end if
+    if bitAnd(myData@@.integerType[24],2) = 0 then
+      add 2 to myData@@.integerType[24]
+    end if
+  end if
+end doListClick
+
+on doEditItem winPtr,theItem
+  put winPtr@.refCon into myData
+  put getMenu(myData@@.integerType[28]) into myMenu
+  if myMenu = NIL then
+    sysbeep 30
+    put showHcAlert(1,"The Info Dialog couldn't be displayed because" &&¬
+    "the menu wasn't found.") into temp
+    exit doEditItem
+  end if
+  hiliteWindow frontDocWindow(),FALSE
+  put getNewDialog(2088, NIL, pointer(-1)) into dlogPtr
+  if dlogPtr = NIL then
+    sysbeep 30
+    put showHcAlert(1,"Some Resources for displaying the dialog are" &&¬
+    "missing.") into temp
+    exit doEditItem
+  end if
+  GetDItem dlogPtr,2,itemType,itemHandle,arect
+  getItem myMenu,theItem,theStr
+  setIText itemHandle,theStr
+  GetDItem dlogPtr,3,itemType,itemHandle,arect
+  if theItem < 32 then
+    if BitAnd(myMenu@@.enableFlags,2^theItem) ≠ 0 then
+      SetCtlValue itemHandle,1
+    end if
+  else
+    hiliteControl itemHandle,255
+  end if
+  getItemCmd myMenu, theItem, theChar
+  if chartonum(theChar) ≠ 0 then
+    GetDItem dlogPtr,7,itemType,itemHandle,arect
+    setIText itemHandle,theChar
+  end if
+  getItemMark myMenu, theItem, theChar
+  if chartonum(theChar) ≠ 0 then
+    GetDItem dlogPtr,8,itemType,itemHandle,arect
+    setIText itemHandle,theChar
+  end if
+  -- getItemIcon myMenu, theItem, theByte
+  -- if chartonum(theByte.chartype) ≠ 0 then
+  --   GetDItem dlogPtr,9,itemType,itemHandle,arect
+  --   setIText itemHandle,chartonum(theByte.chartype) + 256
+  -- end if
+  getItemStyle myMenu, theItem, theStyle
+  if theStyle = 0 then
+    GetDItem dlogPtr,10,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+  end if
+  if bitAnd(theStyle,1) ≠ 0 then
+    GetDItem dlogPtr,11,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+  end if
+  if bitAnd(theStyle,2) ≠ 0 then
+    GetDItem dlogPtr,12,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+  end if
+  if bitAnd(theStyle,4) ≠ 0 then
+    GetDItem dlogPtr,13,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+  end if
+  if bitAnd(theStyle,8) ≠ 0 then
+    GetDItem dlogPtr,14,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+  end if
+  if bitAnd(theStyle,16) ≠ 0 then
+    GetDItem dlogPtr,15,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+  end if
+  if bitAnd(theStyle,32) ≠ 0 then
+    GetDItem dlogPtr,16,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+  end if
+  if bitAnd(theStyle,64) ≠ 0 then
+    GetDItem dlogPtr,17,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+  end if
+  repeat
+    put waitNextEvent(everyEvent, myEvent, 15, NIL) into haveEvent
+    if haveEvent then
+      if isDialogEvent(myEvent) then
+        put dialogSelect(myEvent,dlogPtr,itemHit) into haveEvent
+        if haveEvent then
+          if myEvent.what = mouseDown then
+            if itemHit = 1 then
+              put TRUE into isOk
+              exit repeat
+            else if itemHit = 20 then
+              put FALSE into isOk
+              exit repeat
+            else if itemHit = 3 then
+              GetDItem dlogPtr,3,itemType,itemHandle,arect
+              put GetCtlValue(itemHandle) into myVal
+              SetCtlValue itemHandle,(not myVal)
+            else if itemHit > 10 and itemHit < 18 then
+              GetDItem dlogPtr,itemHit,itemType,itemHandle,arect
+              put GetCtlValue(itemHandle) into myVal
+              SetCtlValue itemHandle,(not myVal)
+              GetDItem dlogPtr,10,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+            else if itemHit = 10 then
+              GetDItem dlogPtr,10,itemType,itemHandle,arect
+              SetCtlValue itemHandle,1
+              GetDItem dlogPtr,11,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+              GetDItem dlogPtr,12,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+              GetDItem dlogPtr,13,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+              GetDItem dlogPtr,14,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+              GetDItem dlogPtr,15,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+              GetDItem dlogPtr,16,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+              GetDItem dlogPtr,17,itemType,itemHandle,arect
+              SetCtlValue itemHandle,0
+            end if
+          end if
+        end if
+      else
+        if myEvent.what = mouseDown then
+          put findWindow(myEvent.where,thisWindow) into clickPlace
+          if thisWindow = dlogPtr and clickPlace = inDrag then
+            setRect arect,-32000,-32000,32000,32000
+            dragWindow dlogPtr, myEvent.where, arect
+          else
+            sysbeep 10
+          end if
+        else if myEvent.what = updateEvt then
+          sendHcEvent myEvent
+        else if myEvent.what = mouseDown then
+          sysbeep 10
+        else if myEvent.what = keyDown then
+          sysbeep 10
+        end if
+      end if
+    else
+      if isDialogEvent(myEvent) then
+        put dialogSelect(myEvent,dlogPtr,itemHit) into gotEvent
+      end if
+    end if
+  end repeat
+  if isOk = TRUE then
+    put 0 into stylz
+    GetDItem dlogPtr,11,itemType,itemHandle,arect
+    if getCtlValue(itemHandle) = 1 then add 1 to stylz
+    GetDItem dlogPtr,12,itemType,itemHandle,arect
+    if getCtlValue(itemHandle) = 1 then add 2 to stylz
+    GetDItem dlogPtr,13,itemType,itemHandle,arect
+    if getCtlValue(itemHandle) = 1 then add 4 to stylz
+    GetDItem dlogPtr,14,itemType,itemHandle,arect
+    if getCtlValue(itemHandle) = 1 then add 8 to stylz
+    GetDItem dlogPtr,15,itemType,itemHandle,arect
+    if getCtlValue(itemHandle) = 1 then add 16 to stylz
+    GetDItem dlogPtr,16,itemType,itemHandle,arect
+    if getCtlValue(itemHandle) = 1 then add 32 to stylz
+    GetDItem dlogPtr,17,itemType,itemHandle,arect
+    if getCtlValue(itemHandle) = 1 then add 64 to stylz
+    setItemStyle myMenu,theItem,stylz
+    GetDItem dlogPtr,2,itemType,itemHandle,arect
+    getIText itemHandle,theStr
+    setItem myMenu,theItem,theStr
+    GetDItem dlogPtr,7,itemType,itemHandle,arect
+    getIText itemHandle,theStr
+    if length(theStr) ≠ 0 then
+      setItemCmd myMenu,theItem,char 1 of theStr
+    else
+      setItemCmd myMenu,theItem,""
+    end if
+    GetDItem dlogPtr,8,itemType,itemHandle,arect
+    getIText itemHandle,theStr
+    if length(theStr) > 1 then
+      setItemMark myMenu,theItem,char 1 of theStr
+    else
+      setItemMark myMenu,theItem,""
+    end if
+    -- GetDItem dlogPtr,9,itemType,itemHandle,arect
+    -- getIText itemHandle,theStr
+    -- setItemIcon myMenu,theItem,theStr-256
+    if theItem < 32 then
+      GetDItem dlogPtr,3,itemType,itemHandle,arect
+      if bitAnd(myMenu@@.enableFlags,2^theItem) ≠ 0 then
+        if getCtlValue(itemHandle) = 0 then
+          subtract 2^theItem from myMenu@@.enableFlags
+        end if
+      else
+        if getCtlValue(itemHandle) = 1 then
+          add 2^theItem to myMenu@@.enableFlags
+        end if
+      end if
+    end if
+    changedResource myMenu
+    updateContents winPtr
+  end if
+  disposDialog dlogPtr
+  hiliteWindow frontDocWindow(),TRUE
+end doEditItem
+
+function CursorWithinEvent eventInfoPtr
+  if FindWindow(eventInfoPtr@.event.where,eventInfoPtr@.eventWindow) is inContent then
+    setCursor arrow
+    return false
+  end if
+  return true -- let HyperCard handle it
+end CursorWithinEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  beginUpdate winPtr
+  clipRect winPtr@.portRect
+  eraseRect winPtr@.portRect
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  add kTopBarHeight to arect.top
+  clipRect arect
+  drawGrowIcon winPtr
+  clipRect winPtr@.portRect
+  -- TOP BAR DOUBLE-DIVIDER
+  moveTo 0,kTopBarHeight-2
+  lineTo winPtr@.portRect.right,kTopBarHeight-2
+  moveTo 0,kTopBarHeight
+  lineTo winPtr@.portRect.right,kTopBarHeight
+  -- LIST CONTENTS
+  if myData@@.longIntType[11] = NIL then
+    makeList winPtr,myData@@.integerType[1]
+  end if
+  drawGraph FALSE,winPtr,myData
+  -- CONTENTS OF TOP BAR -- keep this after the list to keep it up-to-date
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.top +kTopBarHeight into arect.bottom
+  clipRect arect
+  setRect aRect,4,4,36,36
+  drawIcon 200
+  moveTo 42,16
+  textFace 1
+  drawString "Menu Name: "
+  textFace 0
+  put getMenu(myData@@.integerType[28]) into myMenu
+  if myMenu = NIL then
+    put "<UNKNOWN>" into theText
+  else
+    put myMenu@@.menuData into theText
+  end if
+  drawString theText
+  textFace 1
+  moveTo 42,28
+  put myData@@.integerType[2] into theCount
+  drawString "Menu Item count: "
+  textFace 0
+  drawString theCount
+  -- BOTTOM BAR
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  put arect.bottom -14 into arect.top
+  clipRect arect
+  moveTo 5,arect.bottom -4
+  drawString "© 1995 by Uli Kusterer."
+  -- CONTROLS
+  clipRect winPtr@.portRect
+  drawControls winPtr
+  endUpdate winPtr
+end updateEvent
+
+on drawGraph doErase,winPtr,myData
+  debug checkpoint
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  add kTopBarHeight+1 to arect.top
+  subtract 15 from arect.right
+  subtract 15 from arect.bottom
+  clipRect arect
+  if doErase = TRUE then eraseRect arect
+  put myData@@.longIntType[11] into myPic
+  setRect arect,myPic@@.integerType[3], myPic@@.integerType[2], myPic@@.integerType[5],myPic@@.integerType[4] -- picFrame
+  put -getCtlValue(myData@@.longIntType[10]) into theOffset
+  offsetRect arect,0,theOffset
+  drawPicture myPic, arect
+  put myData@@.integerType[23] into selLine
+  if selLine > myData@@.integerType[2] then
+    put myData@@.integerType[2] into myData@@.integerType[23]
+  else if selLine < 0 then
+    if myData@@.integerType[2] > 0 then
+      put 1 into selLine
+    else
+      put 0 into selLine
+    end if
+  end if
+  if selLine > 0 then
+    put (selLine *12) into arect.bottom
+    add 2 to aRect.bottom
+    put arect.bottom -12 into arect.top
+    put winPtr@.portRect.right -15 into arect.right
+    put -getCtlValue(myData@@.longIntType[10]) into theOffset
+    add kTopBarHeight to theOffset
+    offsetRect arect,0,theOffset
+    hiliteRect (bitAnd(myData@@.integerType[24],1) ≠ 0)
+  end if
+  clipRect winPtr@.portRect
+end drawGraph
+
+on makeList winPtr,buttonNb
+  put getWRefCon(winPtr) into myData
+  put myData@@.longIntType[10] into theControl
+  put getMenu(myData@@.integerType[28]) into myMenu
+  put countMItems(myMenu) into mItemCount
+  put 0 into theLength
+  put "" into cmdListe
+  repeat with x = 1 to mItemCount
+    getItem myMenu,x,theStr
+    getItemCmd myMenu,x,theChar
+    getItemStyle myMenu,x,myStyle
+    textFace myStyle
+    put stringWidth(theStr) into aLength
+    if aLength > theLength then put aLength into theLength
+    put return & theStr after liste
+    if chartonum(theChar) = 0 then
+      put return after cmdListe
+    else
+      put theChar after cmdListe
+    end if
+  end repeat
+  textFace 0
+  delete line 1 of liste
+  if myData@@.longIntType[13] ≠ NIL then disposHandle myData@@.longIntType[13]
+  put GetNewTextHandle(liste) into myData@@.longIntType[13]
+  put (number of lines of liste) into myData@@.integerType[2]
+  put winPtr@.portRect.longIntType[1] into arect.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into arect.longIntType[2]
+  add kTopBarHeight to arect.top
+  put arect.left +kMaxListWidth into arect.right
+  put arect.top + ((number of lines of liste) *12) +4 into arect.bottom
+  put openPicture(arect) into myPic
+  put arect.longIntType[1] into minMaxSize.longIntType[1]
+  put arect.longIntType[2] into minMaxSize.longIntType[2]
+  put minMaxSize.left + theLength +5 into minMaxSize.right
+  clipRect minMaxSize
+  repeat with x = 1 to (number of lines of liste)
+    if chartonum(char 1 of line x of liste) = chartonum("-") then
+      penPat gray
+      moveTo minMaxSize.left,(x * 12) +arect.top -4
+      lineTo minMaxSize.right,(x * 12) +arect.top -4
+      penPat black
+    else
+      getItemStyle myMenu,x,myStyle
+      textFace myStyle
+      moveTo minMaxSize.left +5,(x * 12) +arect.top
+      drawString line x of liste
+    end if
+  end repeat
+  textFace 0
+  put arect.longIntType[1] into minMaxSize.longIntType[1]
+  put arect.longIntType[2] into minMaxSize.longIntType[2]
+  add theLength+5 to minMaxSize.left
+  put minMaxSize.left +35 into minMaxSize.right
+  clipRect minMaxSize
+  repeat with x = 1 to (number of chars of cmdListe)
+    if charToNum(char x of cmdListe) ≠ return then
+      moveTo minMaxSize.left +5,(x * 12) +arect.top
+      drawString kCmdKeyChar & char x of cmdListe
+    else if chartonum(char 1 of line x of liste) = chartonum("-") then
+      penPat gray
+      moveTo minMaxSize.left,(x * 12) +arect.top -4
+      lineTo minMaxSize.right,(x * 12) +arect.top -4
+      penPat black
+    end if
+  end repeat
+  -- DISABLE ITEMS
+  clipRect arect
+  penPat gray
+  penMode notPatBic
+  if bitAnd(myMenu@@.enableFlags,1) = 0 then -- whole menu
+    paintRect arect
+  else
+    repeat with x = 1 to 31
+      if bitAnd(myMenu@@.enableFlags.longIntType,2^x) = 0 then
+        put arect.left into minMaxSize.left
+        put (x *12) +arect.top +2 into minMaxSize.bottom
+        put minMaxSize.bottom -12 into minMaxSize.top
+        put arect.right into minMaxSize.right
+        paintRect minMaxSize
+      end if
+    end repeat
+  end if
+  penMode patCopy
+  penPat black
+  closePicture
+  clipRect winPtr@.portRect
+  put myPic into myData@@.longIntType[11]
+  adjust_Scrollbar winPtr
+end makeList
+
+on hiliteRect doFill -- don't forget to set arect
+  GetPenState aPenState
+  penMode 58
+  if doFill then
+    paintRect arect
+  else
+    frameRect arect
+  end if
+  SetPenState aPenState
+end hiliteRect
+
+on selectRect -- don't forget to set arect
+  GetPenState aPenState
+  put newPtr(8) into myBox
+  put aRect.longIntType[1] into myBox@.longIntType[1]
+  put aRect.longIntType[2] into myBox@.longIntType[2]
+  penMode 58
+  penSize 2,2
+  insetRect myBox@,-2,-3
+  subtract 2 from myBox@.integerType[3]
+  frameRect myBox@
+  SetPenState aPenState
+  disposPtr myBox
+end selectRect
+
+on drawIcon theID -- don't forget to set arect before drawing!
+  put GetCIcon(theID) into myColorIcon
+  if mycolorIcon ≠ NIL then
+    plotCIcon aRect,myColorIcon
+    disposeCIcon myColorIcon
+  end if
+end drawIcon
+
+on activateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  put myData@@.longIntType[10] into theControl
+  --activation sequence
+  if bitAnd(eventInfoPtr@.event.modifiers,activeFlag) ≠ 0 then
+    beginEdit_Evt winPtr
+    showControl theControl
+  else
+    do_GiveUpEdit winPtr
+    hideControl theControl
+  end if
+  invalRect winPtr@.portRect
+end activateEvent
+
+on giveUpEditEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  do_GiveUpEdit winPtr
+end giveUpEditEvent
+
+on app4Event eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if bitAnd(eventInfoPtr@.event.message,1) ≠ 0 then
+    setXWIdleTime winPtr,0
+  else
+    setXWIdleTime winPtr,60
+  end if
+end app4Event
+
+on do_GiveUpEdit winPtr
+  endXWedit winPtr
+  put getWRefCon(winPtr) into myData
+  if bitAnd(myData@@.integerType[24],1) ≠ 0
+  then subtract 1 from myData@@.integerType[24]
+  invalRect winPtr@.portRect
+end do_GiveUpEdit
+
+on editEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put eventInfoPtr@.what into theCmd
+  if theCmd = xEditClear then
+    doDelete winPtr
+  else
+    sysbeep 30
+  end if
+end editEvent
+
+on keyDownEvent eventInfoPtr
+  put BitAnd(eventInfoPtr@.event.message,charCodeMask) into theCharNum
+  if theCharNum = 8 then
+    doDelete eventInfoPtr@.eventWindow
+  else
+    sysbeep 30
+  end if
+end keyDownEvent
+
+on doDelete winPtr
+  put winPtr@.refCon into myData
+  put HyperCardText(myData@@.longIntType[13]) into myText
+  HyperCardOwns myText -- prevent disposal
+  put getMenu(myData@@.integerType[28]) into myMenu
+  if myMenu ≠ NIL then
+    put myData@@.integerType[23] into theItem
+    if theItem ≠ 0 then
+      delMenuItem myMenu,theItem
+      changedResource myMenu
+      updateContents winPtr
+    else
+      sysbeep 30
+    end if
+  else
+    sysbeep 30
+    put showHcAlert(1,"Couldn't delete the item because the menu" &&¬
+    "couldn't be loaded.") into temp
+  end if
+end doDelete

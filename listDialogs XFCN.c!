@@ -1,0 +1,26 @@
+GLOBAL kind:T
+
+function listDialogs path
+  if resKind = "?" then
+    return "put|get listDialogs(<path>)"
+  else if resKind = "!" then
+    return "listDialogs 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  put OpenResFile(path) into refNum
+  if refNum <= 0 then
+    return "ERROR: Couldn't open file," && refNum
+  end if
+  put count1Resources("DLOG") into resCount
+  repeat with x = 1 to resCount
+    put Get1IndResource("DLOG",x) into ahandle
+    if ahandle <> nil then
+      put 0 into anid
+      put space into aname
+      GetResInfo ahandle,anid,itstype,aname
+      put anid into theid
+      put aname &","& theid into line x of ress
+    end if
+  end repeat
+  CloseResFile refNum
+  return ress
+end listDialogs

@@ -1,0 +1,82 @@
+function growButton theRect,theBKnd
+  if theRect = "?" then
+    return "put growButton( <rect>, <style> ) into newBox"
+  else if theRect = "!" then
+    return "growButton 1.1, (c) copyright 1996 by M. Uli Kusterer, all rights rsvd."
+  end if
+  put newPtr(8) into myRect
+  put newPtr(8) into drawRect
+  
+  getMouse oldPos -- save mouse loc
+  strToRect theRect,myRect@
+  
+  penMode patXOr
+  penPat gray
+  if theBKnd = "oval" then
+    frameOval myRect@
+  else if theBKnd = "roundrect" or theBKnd = "default" then
+    frameRoundRect myRect@,15,15
+  else if theBKnd = "standard" then
+    frameRoundRect myRect@,10,10
+  else
+    frameRect myRect@
+  end if
+  setRect drawRect@,myRect@.left,myRect@.top,myRect@.right,¬
+  myRect@.bottom
+  repeat while stillDown()
+    getMouse mousePos
+    if mousePos ≠ oldPos then
+      -- erase first
+      if theBKnd = "oval" then
+        frameOval myRect@
+      else if theBKnd = "roundrect" or theBKnd = "default" then
+        frameRoundRect myRect@,15,15
+      else if theBKnd = "standard" then
+        frameRoundRect myRect@,10,10
+      else
+        frameRect drawRect@
+      end if
+      -- change rect
+      setRect myRect@,myRect@.left,myRect@.top,¬
+      loWord(mousePos)-loWord(oldPos)+myRect@.right,¬
+      hiWord(mousePos)-hiWord(oldPos)+myRect@.bottom
+      if emptyRect(myRect@) then
+        setRect drawRect@,loWord(mousePos)-loWord(oldPos)+myRect@.right,¬
+        hiWord(mousePos)-hiWord(oldPos)+myRect@.bottom,¬
+        myRect@.left,myRect@.top
+      else
+        setRect drawRect@,myRect@.left,myRect@.top,myRect@.right,¬
+        myRect@.bottom
+      end if
+      -- then redraw
+      if theBKnd = "oval" then
+        frameOval drawRect@
+      else if theBKnd = "roundrect" or theBKnd = "default" then
+        frameRoundRect drawRect@,15,15
+      else if theBKnd = "standard" then
+        frameRoundRect drawRect@,10,10
+      else
+        frameRect drawRect@
+      end if
+      put mousePos into oldPos
+    end if
+  end repeat
+  
+  if theBKnd = "oval" then
+    frameOval drawRect@
+  else if theBKnd = "roundrect" or theBKnd = "default" then
+    frameRoundRect drawRect@,15,15
+  else if theBKnd = "standard" then
+    frameRoundRect drawRect@,10,10
+  else
+    frameRect drawRect@
+  end if
+  penPat black
+  penMode patCopy
+  
+  rectToStr drawRect@,theStr
+  disposPtr myRect
+  disposPtr drawRect
+  
+  return theStr
+end growButton

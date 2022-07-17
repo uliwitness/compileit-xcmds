@@ -1,0 +1,614 @@
+GLOBAL arect:rect
+GLOBAL theEvent:record[16]
+
+on xDialog resID,wnam,schri,gross,stil,flot
+  if resID = "?" then
+    return "xDialog <resID>[[,<windowName>][,<font>][,<size>][,<styles>]][,<floats>]"
+  else if resID = "!" then
+    return "xDialog 2.5, © 1995-2000 by Uli Kusterer, all rights reserved."
+  end if
+  if wNam = "true" then
+    put empty into wNam
+    put true into flot
+  else if wNam = "false" then
+    put empty into wNam
+    put false into flot
+  end if
+  -- try creating a CWindowRecord first:
+  put GetNewXWindow("DLOG",resID,true,(flot ≠ false)) into winPtr
+  if winPtr = NIL then -- no colour? Try B/W:
+    put GetNewXWindow("DLOG",resID,false,(flot ≠ false)) into winPtr
+  end if
+  if winPtr = nil then return "Error: Couldn't open window."
+  if wNam ≠ empty then setWTitle winPtr,wNam
+  put newHandle(14) into myData
+  if myData = nil then
+    SetWRefCon winPtr,nil
+    CloseXWindow winPtr
+    return "Error: Missing memory for my data structures."
+  else
+    SetWRefCon winPtr,myData
+    put false into myData@@.booleanType[1] -- SizeBox
+    put (flot ≠ FALSE) into myData@@.booleanType[11] -- floating
+    put winPtr@.portRect.right - winPtr@.portRect.left into¬
+    myData@@.integerType[2] -- min width
+    put winPtr@.portRect.bottom - winPtr@.portRect.top into¬
+    myData@@.integerType[3] -- min height
+    put 16000 into myData@@.integerType[4] -- max width
+    put 16000 into myData@@.integerType[5] -- max height
+    put 128 into myData@@.integerType[7]
+    SetXWIdleTime winPtr,1
+    XWAllowReEntrancy winPtr, true, true
+    setPort winPtr
+    if schri ≠ empty then
+      GetFNum schri,fNum
+      textFont fNum
+    end if
+    if stil ≠ empty then
+      put 0 into fFace
+      if stil ≠ "plain" then
+        if "bold" is in stil then
+          add 1 to fFace
+        end if
+        if "italic" is in stil then
+          add 2 to fFace
+        end if
+        if "underline" is in stil then
+          add 4 to fFace
+        end if
+        if "outline" is in stil then
+          add 8 to fFace
+        end if
+        if "shadow" is in stil then
+          add 16 to fFace
+        end if
+        if "condense" is in stil then
+          add 32 to fFace
+        end if
+        if "extend" is in stil then
+          add 64 to fFace
+        end if
+      end if
+      textFace fFace
+    end if
+    if gross ≠ empty then
+      textSize gross
+    end if
+    showWindow winPtr
+  end if
+end xDialog
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  sendCardMessage "xDialogEvt open," & quote & PtrToName(winPtr) & quote
+  activateWindow winPtr
+end OpenEvent
+
+function CloseEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put GetWRefCon(winPtr) into myData
+  if myData ≠ nil then
+    sendCardMessage "xDialogEvt close," & quote & PtrToName(winPtr) & quote
+    DisposHandle myData
+  end if
+  return TRUE
+end CloseEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put propNamePtr@.str255type into propName
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if propName = "name" then
+    setWTitle winPtr,theValue
+  else if char 1 to 4 of propName = "text" then
+    put (char 5 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 8 or itemType = 16 or itemType = 136 or itemType = 144 then
+      SetIText itemHandle,theValue
+      put winPtr@.textH into myTEHandle
+      TECalText myTEHandle
+      InvalRect arect
+    else
+      return TRUE
+    end if
+  else if char 1 to 4 of propName = "name" then
+    put (char 5 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬ -- aktive controls
+    itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then -- inaktive controls
+      SetCTitle itemHandle,theValue
+      Draw1Control itemHandle
+    else
+      return TRUE
+    end if
+  else if char 1 to 7 of propName = "visible" then
+    put (char 8 to length(propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemHandle ≠ nil then -- gibt's das Control überhaupt?
+      if theValue = TRUE then
+        ShowDItem winPtr,theItem
+      else
+        HideDItem winPtr,theItem
+      end if
+    else
+      return TRUE
+    end if
+  else if char 1 to 6 of propName = "hilite" then
+    put (char 7 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬ -- aktive controls
+    itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then -- inaktive controls
+      if theValue = TRUE then
+        SetCtlValue itemHandle,1
+      else if theValue = FALSE then
+        SetCtlValue itemHandle,0
+      else
+        SetCtlValue itemHandle,theValue+0
+      end if
+      Draw1Control itemHandle
+    else
+      return TRUE
+    end if
+  else if char 1 to 7 of propName = "minimum" then
+    put (char 8 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬ -- aktive controls
+    itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then -- inaktive controls
+      if theValue = TRUE then
+        SetCtlMin itemHandle,1
+      else if theValue = FALSE then
+        SetCtlMin itemHandle,0
+      else
+        SetCtlMin itemHandle,theValue+0
+      end if
+      Draw1Control itemHandle
+    else
+      return TRUE
+    end if
+  else if char 1 to 7 of propName = "maximum" then
+    put (char 8 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬ -- aktive controls
+    itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then -- inaktive controls
+      if theValue = TRUE then
+        SetCtlMax itemHandle,1
+      else if theValue = FALSE then
+        SetCtlMax itemHandle,0
+      else
+        SetCtlMax itemHandle,theValue+0
+      end if
+      Draw1Control itemHandle
+    else
+      return TRUE
+    end if
+  else if char 1 to 5 of propName = "value" then
+    put (char 6 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬ -- aktive controls
+    itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then -- inaktive controls
+      SetCtlValue itemHandle,theValue
+      Draw1Control itemHandle
+    else
+      return TRUE
+    end if
+  else if char 1 to 7 of propName = "enabled" then
+    put (char 8 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or¬ -- aktive controls
+    itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then -- inaktive controls
+      if theValue = TRUE then
+        put 0 into newVal
+      else
+        put 255 into newVal
+      end if
+      HiliteControl itemHandle,newVal
+      Draw1Control itemHandle
+    else
+      return TRUE
+    end if
+  else if char 1 to 4 of propName = "rect" and length(propName) >4 then
+    put (char 5 to length(propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemHandle ≠ nil then
+      StrToRect theValue,arect
+      SetDItem winPtr,theItem,itemType,itemHandle,arect
+      if itemType > 3 and itemType < 7 then
+        hideControl itemHandle
+        moveControl itemHandle, arect.left, arect.top
+        sizeControl itemHandle, arect.right - arect.left, arect.bottom - arect.top
+        showControl itemHandle
+      else if (itemType = 16 or itemType = 144)¬
+      and winPtr@.editField = (theItem -1) then
+        put winPtr@.textH into myTEHandle
+        -- set view rect of TE Record
+        put arect.top into myTEHandle@@.integerType[0]
+        put arect.left into myTEHandle@@.integerType[1]
+        put arect.bottom into myTEHandle@@.integerType[2]
+        put arect.right into myTEHandle@@.integerType[3]
+        -- set dest rect of TE Record to twice the width
+        put arect.top into myTEHandle@@.integerType[4]
+        put arect.left into myTEHandle@@.integerType[5]
+        put arect.bottom into myTEHandle@@.integerType[6]
+        put arect.right +(arect.right -arect.left) into myTEHandle@@.integerType[7]
+      end if
+      invalRect arect
+    else
+      return TRUE
+    end if
+  else if propName = "cursor" then
+    put theValue +0 into theID
+    put getCursor(theID) into theCursor
+    if theCursor ≠ nil or theCursor = 0 then
+      put theID into myData@@.integerType[7]
+    else
+      return TRUE
+    end if
+  else if propName = "rect" then
+    StrToRect theValue,arect
+    LocalToGlobal arect.longIntType[1]
+    LocalToGlobal arect.longIntType[2]
+    MoveWindow winPtr, arect.IntegerType[2], arect.IntegerType[1], TRUE
+    SizeWindow winPtr, arect.IntegerType[4] - arect.IntegerType[2], arect.IntegerType[3] - arect.IntegerType[1], TRUE
+  else if propName = "width" then
+    SizeWindow winPtr, theValue, winPtr@.portRect.integerType[3] - winPtr@.portRect.integerType[1] , TRUE
+  else if propName = "height" then
+    SizeWindow winPtr, winPtr@.portRect.integerType[4] - winPtr@.portRect.integerType[2], theValue, TRUE
+  else if propName = "sizeBox" then
+    put (theValue = true) into myData@@.booleanType[1]
+    invalRect winPtr@.portRect
+  else if propName = "growRect" then
+    put (item 1 of theValue)+0 into myData@@.integerType[2]
+    put (item 2 of theValue)+0 into myData@@.integerType[3]
+    put (item 3 of theValue)+0 into myData@@.integerType[4]
+    put (item 4 of theValue)+0 into myData@@.integerType[5]
+  else if propName = "selectedItem" then
+    put theValue+0 into itemNo
+    getDItem winPtr,itemNo,itemKind,itemHandle,arect
+    if itemKind = editText or itemKind = (editText +128) then
+      endXWedit winPtr
+      put winPtr@.textH into myTEHandle
+      TEDeactivate myTEHandle
+      SelIText winPtr,itemNo,0,32767
+      put winPtr@.textH into myTEHandle
+      BeginXWedit winPtr
+      TEActivate myTEHandle
+    else
+      return true
+    end if
+  else
+    return true
+  end if
+  return false -- we already processed this one
+end SetPropEvent
+
+function GetPropEvent eventInfoPtr,propNamePtr
+  put propNamePtr@.str255type into propName
+  put eventInfoPtr@.eventWindow into winPtr
+  put GetWRefCon(winPtr) into myData
+  if char 1 to 4 of propName = "text" then
+    put (char 5 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 8 or itemType = 16 or itemType = 136 or itemType = 144 then
+      GetIText itemHandle,theValue
+      return theValue
+    else
+      exit GetPropEvent
+    end if
+  else if char 1 to 4 of propName = "name" then
+    put (char 5 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then
+      GetCTitle itemHandle,theValue
+      return theValue
+    else
+      exit GetPropEvent
+    end if
+  else if char 1 to 6 of propName = "hilite" then
+    put (char 7 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 132 then
+      return GetCtlValue(itemHandle) ≠ 0
+    else if itemType = 5 or itemType = 6 or itemType = 133 or itemType = 134 then
+      return GetCtlValue(itemHandle)
+    else
+      exit GetPropEvent
+    end if
+  else if char 1 to 7 of propName = "minimum" then
+    put (char 8 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 132 or itemType = 133 or itemType = 134 then
+      return GetCtlMin(itemHandle)
+    else
+      exit GetPropEvent
+    end if
+  else if char 1 to 7 of propName = "maximum" then
+    put (char 8 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 132 or itemType = 133 or itemType = 134 then
+      return GetCtlMax(itemHandle)
+    else
+      exit GetPropEvent
+    end if
+  else if char 1 to 5 of propName = "value" then
+    put (char 6 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemType = 4 or itemType = 5 or itemType = 6 or itemType = 7 or ¬
+     itemType = 132 or itemType = 133 or itemType = 134 or itemType = 135 then
+      return GetCtlValue(itemHandle)
+    else
+      exit GetPropEvent
+    end if
+  else if char 1 to 4 of propName = "rect" and length(propName) > 4 then
+    put (char 5 to (number of chars of propName) of propName)+0 into theItem
+    GetDItem winPtr,theItem,itemType,itemHandle,arect
+    if itemHandle ≠ nil then
+      RectToStr arect,str
+      return str
+    else
+      exit GetPropEvent
+    end if
+  else if propName = "cursor" then
+    return myData@@.integerType[7]
+  else if propName = "growRect" then
+    put myData@@.integerType[2] & "," & myData@@.integerType[3] & "," & myData@@.integerType[4] & "," & myData@@.integerType[5] into theStr
+    return theStr
+  else if propName = "properties" then
+    return "rect, loc, visible, name, cursor, rectN, visibleN, enabledN, hititeN, textN, sizeBox, growRect, selectedItem"
+  else if propName = "selectedItem" then
+    put winPtr@.editField into theItem
+    return theItem +1
+  else exit GetPropEvent -- reject any other properties
+end GetPropEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if myData@@.booleanType[11] = false and frontDocWindow() ≠ winPtr then
+    activateWindow winPtr
+    exit mouseDownEvent
+  else if myData@@.booleanType[11] = true and frontWindow() ≠ winPtr then
+    activateWindow winPtr
+  end if
+  get FindWindow(eventInfoPtr@.event.where,winPtr)
+  if it is inContent then
+    if myData@@.booleanType[1] = true then
+      put winPtr@.portRect.longIntType[2] into arect.longIntType[1]
+      put winPtr@.portRect.longIntType[2] into arect.longIntType[1]
+      subtract 15 from arect.left
+      subtract 15 from arect.top
+      put eventInfoPtr@.event.where into myPos
+      globalToLocal myPos
+      if ptInRect(myPos,arect) then
+        changeWinSize winPtr
+        exit mouseDownEvent
+      end if
+    end if
+    if DialogSelect(eventInfoPtr@.event,winPtr,itemHit) then
+      reactOnItemClick winPtr,itemHit
+      sendCardMessage "xDialogEvt mouseUp," & quote & PtrToName(winPtr) & quote & "," & itemHit
+      activateWindow winPtr
+    else
+      sendCardMessage "xDialogEvt mouseUp," & quote & PtrToName(winPtr) & quote & ",0"
+      activateWindow winPtr
+    end if
+  else if it is inDrag then
+    setRect arect,-16000,-16000,16000,16000
+    DragWindow winPtr,eventInfoPtr@.event.where,arect
+  else if it is inGoAway then
+    if trackGoAway(winPtr,eventInfoPtr@.event.where) then
+      CloseXWindow winPtr
+    end if
+  else if it is inZoomIn or it is inZoomOut then
+    if trackBox(winPtr,eventInfoPtr@.event.where, it) then
+      sendCardMessage "xDialogEvt doZoom," & quote & PtrToName(winPtr) & quote
+    end if
+  else if it is inGrow then
+    if myData@@.booleanType[1] = TRUE then
+      changeWinSize winPtr
+    else
+      if DialogSelect(eventInfoPtr@.event,winPtr,itemHit) then
+        reactOnItemClick winPtr,itemHit
+        sendCardMessage "xDialogEvt mouseUp," & quote & PtrToName(winPtr) & quote & "," & itemHit
+        activateWindow winPtr
+      else
+        sendCardMessage "xDialogEvt mouseUp," & quote & PtrToName(winPtr) & quote & ",0"
+        activateWindow winPtr
+      end if
+    end if
+  else
+    if trackBox(winPtr,eventInfoPtr@.event.where, it) then
+      sendCardMessage "xDialogEvt" & it & "," & quote & PtrToName(winPtr) & quote
+    end if
+  end if
+end mouseDownEvent
+
+on handleEdit_Start winPtr
+  if winPtr@.editField > 0 then
+    BeginXWEdit winPtr
+    put winPtr@.textH into myTEHandle
+    TEActivate myTEHandle
+  end if
+end handleEdit_Start
+
+on handleEdit_Stop winPtr
+  if winPtr@.editField > 0 then
+    EndXWEdit winPtr
+    put winPtr@.textH into myTEHandle
+    TEDeactivate myTEHandle
+  end if
+end handleEdit_Stop
+
+global minMaxSize:R[8]
+global newSize:L
+global newWidth:I
+global newHeight:I
+
+on changeWinSize winPtr
+  GetMouse mousePos
+  LocalToGlobal mousePos
+  put getWRefCon(winPtr) into myData
+  put myData@@.integerType[3] into minMaxSize.top
+  put myData@@.integerType[2] into minMaxSize.left
+  put myData@@.integerType[5] into minMaxSize.bottom
+  put myData@@.integerType[4] into minMaxSize.right
+  put growWindow(winPtr,mousePos,minMaxSize) into newSize
+  if newSize ≠ nil then
+    put LoWord(newSize) into newWidth
+    put HiWord(newSize) into newHeight
+    SizeWindow winPtr, newWidth, newHeight, FALSE
+    invalRect winPtr@.portRect
+    sendCardMessage ("XDialogEvt sizeWindow," && quote & PtrToName(winPtr) & quote)
+  end if
+end changeWinSize
+
+on activateWindow winPtr
+  selectWindow winPtr
+  handleEdit_Start winPtr
+end activateWindow
+
+on activateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  InvalRect winPtr@.portRect  --ensure grow icon gets redrawn
+  --activation sequence
+  if bitAnd(eventInfoPtr@.event.modifiers,activeFlag) <> activeFlag then
+    --  handleEdit_Start winPtr
+    --else
+    handleEdit_Stop winPtr
+  end if
+end activateEvent
+
+on keyDownEvent eventInfoPtr
+  aKeyEvent eventInfoPtr
+end keyDownEvent
+
+on autoKeyEvent eventInfoPtr
+  aKeyEvent eventInfoPtr
+end autoKeyEvent
+
+on aKeyEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if DialogSelect(eventInfoPtr@.event,winPtr,itemHit) then
+    activateWindow winPtr
+  end if
+  sendCardMessage "xDialogEvt keyDown," & quote & PtrToName(winPtr) & quote & "," & (winPtr@.editField +1)
+end aKeyEvent
+
+on SendEvent eventInfoPtr
+  put eventInfoPtr@.eventParams.ptrType@.str255type into evtName
+  put eventInfoPtr@.eventWindow into winPtr
+  if char 1 to 4 of evtName = "type" then
+    put char 6 of evtName into charToType
+    if winPtr@.editField <> -1 then
+      TEKey charToType,winPtr@.textH
+      sendCardMessage "xDialogEvt keyDown," & quote & PtrToName(winPtr) & quote & "," & (winPtr@.editField +1)
+    end if
+  end if
+end SendEvent
+
+function CursorWithinEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if myData@@.booleanType[11] = false and frontDocWindow() <> winPtr then
+    return true
+  end if
+  put FindWindow(eventInfoPtr@.event.where,winPtr) into thePart
+  if thePart is inContent or¬
+  (myData@@.booleanType[1] = false and thePart = inGrow) then
+    put myData@@.integerType[7] into theID
+    put GetCursor(theID) into theCursor
+    if theCursor <> NIL then
+      SetCursor theCursor@@
+    else
+      setCursor arrow
+    end if
+    return false
+  else
+    return true -- let HyperCard handle it
+  end if
+end CursorWithinEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  BeginUpdate winPtr
+  EraseRect winPtr@.portRect
+  UpdtDialog winPtr, winPtr@.visRgn
+  if myData@@.booleanType[1] = TRUE then drawGrowIcon winPtr
+  EndUpdate winPtr
+end updateEvent
+
+on GiveUpEditEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  handleEdit_Stop winPtr
+end giveUpEditEvent
+
+on idleEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.textH into myTEHandle
+  if winPtr@.editField <> -1 then
+    TEIdle myTEHandle
+  end if
+end idleEvent
+
+on app4Event eventInfoPtr
+  put eventInfoPtr@.event.message into theMsg
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if myData@@.booleanType[11] = TRUE then
+    if bitAnd(theMsg,1) ≠ 0 then
+      showWindow winPtr
+    else
+      hideWindow winPtr
+    end if
+  end if
+end app4Event
+
+function PtrToName winPtr
+  GetWTitle winPtr,myStr
+  return myStr
+end PtrToName
+
+on hidePalettesEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if myData@@.booleanType[11] = TRUE then
+    hideWindow winPtr
+  end if
+end hidePalettesEvent
+
+on showPalettesEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put getWRefCon(winPtr) into myData
+  if myData@@.booleanType[11] = TRUE then
+    showWindow winPtr
+  end if
+end showPalettesEvent
+
+on reactOnItemClick winPtr,hitItem
+  debug checkpoint
+  GetDItem winPtr,hitItem,itemType,itemHandle,arect
+  if itemType = 5 or itemType = 133 then
+    SetCtlValue itemHandle, (GetCtlValue(itemHandle) = 0)
+    sendCardMessage "xDialogEvt toggledCheckBox," & quote & PtrToName(winPtr) & quote & "," & hitItem
+  end if
+end reactOnItemClick
+
+on editEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.textH into myTEHandle
+  if winPtr@.editField <> -1 then
+    if eventInfoPtr@.event.what = xEditCut then
+      TECopy myTEHandle
+      TEDelete myTEHandle
+      sendCardMessage "xDialogEvt keyDown," & quote & PtrToName(winPtr) & quote & "," & (winPtr@.editField +1)
+    else if eventInfoPtr@.event.what = xEditCopy then
+      TECopy myTEHandle
+    else if eventInfoPtr@.event.what = xEditPaste then
+      TEPaste myTEHandle
+      sendCardMessage "xDialogEvt keyDown," & quote & PtrToName(winPtr) & quote & "," & (winPtr@.editField +1)
+    else if eventInfoPtr@.event.what = xEditClear then
+      TEDelete myTEHandle
+      sendCardMessage "xDialogEvt keyDown," & quote & PtrToName(winPtr) & quote & "," & (winPtr@.editField +1)
+    end if
+  end if
+end editEvent

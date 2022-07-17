@@ -1,0 +1,271 @@
+GLOBAL RectA:R,RectB:R
+
+Constant kTopBarHeight = 14
+Constant kMinWindowH = 180
+Constant kMinWindowV = 180
+Constant kMaxWindowV = 30000
+Constant kMaxWindowH = 30000
+
+on ResManager
+  setRect RectA,40,40,512,342
+  put newXWindow(RectA,"Resources",FALSE,0,FALSE,FALSE) into winPtr
+  if winPtr = NIL then return "Error: Couldn't create window."
+  setPort winPtr
+  textFont 4
+  textSize 9
+  put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+  add kTopBarHeight to RectA.top
+  subtract 15 from RectA.right
+  subtract 15 from RectA.bottom
+  subtract 1 from RectA.left
+  setRect RectB,0,0,1,0
+  setPt myPos,0,0
+  put NIL into winPtr@.refCon
+  put LNew(RectA,RectB,myPos,0,winPtr,TRUE,TRUE,FALSE,TRUE) into myList
+  if myList = NIL then
+    closeXWindow winPtr
+    return "Error: Couldn't create List."
+  end if
+  put newHandle(8) into winPtr@.refCon
+  put myList into winPtr@.refCon@@.ptrType[1]
+  put 0 into winPtr@.refCon@@.integerType[3] -- CURS ID
+  showWindow winPtr
+end resManager
+
+on openEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  setXWIdleTime winPtr,0
+  XWAllowReEntrancy winPtr,TRUE,TRUE
+  addResList winPtr
+end openEvent
+
+on addResList winPtr
+  setPort winPtr
+  put newPtr(8) into box
+  put winPtr@.refCon@@.ptrType[1] into myList
+  LDoDraw FALSE, myList
+  LUpdate winPtr@.visRgn, myList
+  put count1Types() into typCnt
+  repeat with x = 1 to typCnt
+    get1IndType theType, x
+    add count1Resources(theType) to theMax
+  end repeat
+  if theMax > 0 then
+    put winPtr@.portRect.longIntType[1] into box@.longIntType[1]
+    put winPtr@.portRect.longIntType[2] into box@.longIntType[2]
+    put winPtr@.portRect.right - winPtr@.portRect.left into barWidth
+    put box@.top +14 into box@.bottom
+    subtract 1 from box@.right
+    insetRect box@,1,1
+    clipRect winPtr@.portRect
+    put (barWidth / theMax)^1 into theStepW
+    repeat with x = 1 to typCnt
+      get1IndType theType, x
+      put count1Resources(theType) into resCount
+      repeat with y = 1 to resCount
+        add 1 to currPos
+        put box@.left +round(currPos *theStepW) into box@.right
+        paintRect box@
+        put Get1IndResource(theType,y) into theRes
+        GetResInfo theRes,anid,itstype,aname
+        if anid > 32768 then
+          subtract 65536 from anid
+        end if
+        repeat until return is not in aname
+          put offset(return, aname) into theOffs
+          delete char theOffs of aname
+        end repeat
+        put forceWidth(theType,4) & " " &¬
+        forceWidth(anid,6) & " " & aname into theLine
+        makeLine theLine,myList
+      end repeat
+    end repeat
+  end if
+  LDoDraw TRUE, myList
+  invalRect winPtr@.portRect
+  disposPtr box
+end addResList
+
+on makeLine theStr,myList
+  put LAddRow(1,myList@@.dataBounds.bottom,myList) into rowNum
+  SetPt theCell,0,rowNum
+  put getNewTextHandle(theStr) into strHand
+  HLock strHand
+  LSetCell strHand@,getHandleSize(strHand),theCell,myList
+  HUnlock strHand
+  disposHandle strHand
+end makeLine
+
+on closeEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  if myList ≠ NIL then
+    LDispose myList
+  end if
+  return TRUE
+end closeEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  setPort winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  beginUpdate winPtr
+  clipRect winPtr@.portRect
+  eraseRect winPtr@.portRect
+  put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+  add kTopBarHeight to rectA.top
+  clipRect rectA
+  drawGrowIcon winPtr
+  clipRect winPtr@.portRect
+  LUpdate winPtr@.visRgn,myList
+  put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+  put rectA.top +kTopBarHeight into rectA.bottom
+  clipRect rectA
+  moveTo 0,kTopBarHeight-1
+  lineTo rectA.right,kTopBarHeight-1
+  clipRect winPtr@.portRect
+  endUpdate winPtr
+end updateEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  if frontDocWindow() ≠ winPtr then
+    selectWindow winPtr -- make it active ...
+    exit mouseDownEvent
+  end if
+  put FindWindow(eventInfoPtr@.event.where,winPtr) into temp
+  if temp is inContent then
+    put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+    put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+    add kTopBarHeight to RectA.top
+    setPort winPtr
+    put eventInfoPtr@.event.where into myPos
+    globalToLocal myPos
+    if ptInRect(myPos,rectA) then
+      if LClick(myPos, eventInfoPtr@.event.modifiers,¬
+      myList) then -- double click
+        
+      else
+        put LLastClick(myList) into theCell
+        put "1234567890" into cellText
+        put charsHandle(cellText) into theHand
+        put 10 into theLen
+        HLock theHand
+        LGetCell theHand@, theLen, theCell, myList
+        HUnlock theHand
+        put char 1 to 4 of cellText into resType
+        put (char 6 to 10 of cellText)+0 into resID
+        if isSame("CURS",resType) then
+          put GetResource(resType,resID) into myRes
+          if myRes ≠ NIL then
+            put resID into winPtr@.refCon@@.integerType[3]
+            setCursor myRes@@
+          else
+            put 0 into winPtr@.refCon@@.integerType[3]
+          end if
+        else
+          put 0 into winPtr@.refCon@@.integerType[3]
+        end if
+      end if
+    else
+      -- not in list
+    end if
+  else if temp is inDrag then
+    setRect rectA,-32000,-32000,32000,32000
+    DragWindow winPtr,eventInfoPtr@.event.where,rectA
+  else if temp is inGoAway then
+    if trackGoAway(winPtr,eventInfoPtr@.event.where) then
+      CloseXWindow winPtr
+    end if
+  else if temp is inZoomIn or temp is inZoomOut then
+    if trackBox(winPtr,eventInfoPtr@.event.where, temp) then
+      zoomWindow winPtr,temp,TRUE
+      resizeList winPtr
+    end if
+  else if temp is inGrow then
+    put kMinWindowV into rectA.top
+    put kMinWindowH into rectA.left
+    put kMaxWindowV into rectA.bottom
+    put kMaxWindowH into rectA.right
+    put growWindow(winPtr,eventInfoPtr@.event.where,rectA) into newSize
+    if newSize ≠ nil then
+      put LoWord(newSize) into newWidth
+      put HiWord(newSize) into newHeight
+      SizeWindow winPtr, newWidth, newHeight, TRUE
+      resizeList winPtr
+    end if
+  end if
+end mouseDownEvent
+
+function cursorWithinEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if FindWindow(eventInfoPtr@.event.where,winPtr) is inContent then
+    if winPtr@.refCon@@.integerType[3] = 0 then
+      setCursor arrow
+    else
+      put GetResource("CURS",winPtr@.refCon@@.integerType[3]) into myRes
+      if myRes ≠ NIL then
+        setCursor myRes@@
+      else
+        setCursor arrow
+      end if
+    end if
+  else
+    setCursor arrow
+  end if
+  return FALSE
+end cursorWithinEvent
+
+on resizeList winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+  add kTopBarHeight to RectA.top
+  subtract 15 from RectA.right
+  subtract 15 from RectA.bottom
+  subtract 1 from RectA.left
+  put rectA.right - rectA.left into breit
+  put rectA.bottom - rectA.top into hoch
+  LSize breit,hoch,myList
+  invalRect winPtr@.portRect
+end resizeList
+
+on activateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  InvalRect winPtr@.portRect  --ensure grow icon gets redrawn
+  --activation sequence
+  if bitAnd(eventInfoPtr@.event.modifiers,activeFlag) ≠ 0 then
+    LActivate TRUE,myList
+  else
+    LActivate FALSE,myList
+  end if
+end activateEvent
+
+function forceWidth str,nb
+  if length(str) > nb then
+    put char 1 to (nb-1) of str & "…" into str
+  else if length(str) < nb then
+    repeat until length(str) = nb
+      put " " after str
+    end repeat
+  end if
+  return str
+end forceWidth
+
+function isSame or,cp
+  put length(or) into theLen
+  if theLen ≠ length(cp) then return FALSE
+  repeat with x = 1 to theLen
+    if charToNum(char x of or) ≠ charToNum(char x of cp) then return FALSE
+  end repeat
+  return TRUE
+end isSame
+
+
+

@@ -1,0 +1,41 @@
+GLOBAL kind:T
+
+function listRes filePath
+  if filePath = "?" then
+    return "put|get resList(<filePath>)"
+  else if filePath = "!" then
+    return "listRes 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  if filePath = empty then return "Error: file path missing."
+  put curResFile() into stackRef
+  put openResFile(filePath) into myRefNum
+  put (stackRef = myRefNum) into dontClose -- don't close current stack
+  if myRefNum = -1 then return "Error: Coudn't get file."
+  put count1Types() into typeCount
+  put 0 into anid
+  put space into aname
+  repeat with x = 1 to typeCount
+    if commandPeriod() = TRUE then
+      closeResFile myRefNum
+      return "Error: User cancelled."
+    end if
+    Get1IndType theType,x
+    put Count1Resources(theType) into resCount
+    repeat with y = 1 to resCount
+      set cursor to busy
+      if commandPeriod() = TRUE then
+        closeResFile myRefNum
+        return "Error: User cancelled."
+      end if
+      put Get1IndResource(theType,y) into ahandle
+      if ahandle <> nil then
+        GetResInfo ahandle,anid,itstype,aname
+        put anid into theid
+        put return & itstype &","& theid & "," & sizeResource(ahandle) & "," & aname after ress
+      end if
+    end repeat
+  end repeat
+  if dontClose = false then closeResFile myRefNum
+  delete line 1 of ress
+  return ress
+end listRes

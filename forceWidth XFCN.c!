@@ -1,0 +1,24 @@
+function forceWidth str,theList
+  if paramCount() = 1 and str = "?" then
+    return "put|get forceWidth(<str>,<widthList>)"
+  else if paramCount() = 1 and str = "!" then
+    return "© 1996 by Uli Kusterer, all rights reserved."
+  end if
+  repeat with x = 1 to (number of lines of str)
+    put line x of str into theLine
+    repeat with y = 1 to (number of items of theLine)
+      put item y of theLine into theItem
+      put (item y of theList)+0 into theLen
+      if length(theItem) < theLen then
+        repeat until length(theItem) = theLen
+          put " " after theItem
+        end repeat
+      else if length(theItem) > item y of theList then
+        put char 1 to (item y of theList) of theItem into theItem
+      end if
+      put theItem after otherStr
+    end repeat
+    put return after otherStr
+  end repeat
+  return otherStr
+end forceWidth

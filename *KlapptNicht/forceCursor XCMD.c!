@@ -1,0 +1,7 @@
+on forceCursor resID
+  put getResource("CURS",resID) into newCurs
+  if newCurs = NIL then return "Error: Couldn't get cursor."
+  put getResource("CURS",128) into hcCurs
+  if hcCurs = NIL then return "Error: Couldn't get Browse."
+  HandleBlockMove newCurs,hcCurs,128,0,0
+end forceCursor

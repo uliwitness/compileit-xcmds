@@ -1,0 +1,50 @@
+on helpMenu mode,str
+  global gHM_CountOf_HelpItems
+  if mode = "?" then
+    return syntax()
+  else if mode = "!" then
+    return copyright()
+  end if
+  if mode = "Add" or mode = "A" then
+    put hmGetHelpMenuHandle(mymenu) into err
+    if err = -108 then
+      return "Error: Not enough Memory."
+    else if err = -192 then
+      return "Error: Resource not found."
+    else if err = -855 then
+      return "Error: Help Menu not set up."
+    else if err ≠ 0 then
+      return "Error: Unknown #" & err
+    end if
+    add countMItems(myMenu) - gHM_CountOf_HelpItems to gHM_CountOf_HelpItems
+    AppendMenu myMenu,str
+  else if mode = "Remove" or mode = "R" then
+    put HMGetHelpMenuHandle(myMenu) into err
+    if err = -108 then
+      return "Error: Not enough Memory."
+    else if err = -192 then
+      return "Error: Resource not found."
+    else if err = -855 then
+      return "Error: Help Menu not set up."
+    else if err ≠ 0 then
+      return "Error: Unknown #" & err
+    end if
+    put countMItems(myMenu) into newCount
+    put gHM_CountOf_HelpItems into ci_temp
+    repeat with x = newCount down to ci_Temp
+      DelMenuItem myMenu,x
+    end repeat
+    put 0 into gHM_CountOf_HelpItems
+  else
+    return "Error: Syntax is" && syntax()
+  end if
+  DrawMenuBar
+end helpMenu
+
+function syntax
+  return "helpMenu <A[dd] | R[emove]"
+end syntax
+
+function copyright
+  return "1.0, © 1995 by Martin Kusterer, all rights rsvd."
+end copyright

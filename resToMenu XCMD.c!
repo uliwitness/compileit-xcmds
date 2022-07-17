@@ -1,0 +1,30 @@
+GLOBAL oType:T
+
+on resToMenu mnID,osTp
+  if txID = "?" then return syntax()
+  if txID = "!" then return copyright()
+  if not isInteger(mnID) then return "Error: Menu ID must be an integer."
+  if number of chars of osTp ≠ 4 then return "Error: Resource type must be 4 Characters long."
+  put osTp into oType
+  put getMHandle(mnID) into myMenu
+  if myMenu = NIL then return "Error: Menu not found."
+  addResMenu myMenu,oType
+end resToMenu
+
+function syntax
+  return "resToMenu <menuID>,<resType>"
+end syntax
+
+function copyright
+  return "resMenu 1.0, © 1995 by Uli Kusterer, all rights reserved."
+end copyright
+
+function isInteger nb
+  if nb = empty then return FALSE
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then
+      return FALSE
+    end if
+  end repeat
+  return TRUE
+end isInteger

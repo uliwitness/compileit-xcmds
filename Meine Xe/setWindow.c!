@@ -1,0 +1,42 @@
+global winPtr:Ptr
+
+on setWindow what,data
+  put FrontDocWindow() into winPtr
+  if what = "Name" then
+    SetWTitle winPtr,data
+  else if what = "drawSizeBox" or what = "dsb" then
+    DrawGrowIcon winPtr
+  else if what = "hilite" or what = "highlight" then
+    HiliteWindow winPtr,(data ≠ false)
+  else if what = "Size" then
+    if item 1 of data is an integer and item 2 of data is an integer then
+      SizeWindow winPtr, item 1 of data, item 2 of data, TRUE
+    else
+      return "Error: Size must be integer."
+    end if
+  else if what = "closeBox" then
+    if data = TRUE then
+      put 1 into winPtr@.goAwayFlag
+    else if data = FALSE then
+      put 0 into winPtr@.goAwayFlag
+    else
+      return "Error: activate-boolean must be TRUE or FALSE."
+    end if
+    -- update title bar
+    GetWTitle winPtr theTitle
+    SetWTitle winPtr,theTitle
+  else if what = "zoomBox" then
+    if data = TRUE then
+      put 1 into winPtr@.spareFlag
+    else if data = FALSE then
+      put 0 into winPtr@.spareFlag
+    else
+      return "Error: activate-boolean must be TRUE or FALSE."
+    end if
+    -- update title bar
+    GetWTitle winPtr theTitle
+    SetWTitle winPtr,theTitle
+  else
+    return "Error: Unrecognized mode."
+  end if
+end setWindow

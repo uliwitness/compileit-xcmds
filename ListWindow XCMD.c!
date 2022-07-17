@@ -1,0 +1,193 @@
+GLOBAL RectA:R,RectB:R
+
+Constant kTopBarHeight = 0
+Constant kMinWindowH = 180
+Constant kMinWindowV = 180
+Constant kMaxWindowV = 30000
+Constant kMaxWindowH = 30000
+
+on ListWindow
+  setRect RectA,40,40,512,342
+  put newXWindow(RectA,"List",FALSE,0,FALSE,FALSE) into winPtr
+  if winPtr = NIL then return "Error: Couldn't create window."
+  setPort winPtr
+  textFont 0
+  textSize 0
+  put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+  add kTopBarHeight to RectA.top
+  subtract 15 from RectA.right
+  subtract 15 from RectA.bottom
+  subtract 1 from RectA.left
+  setRect RectB,0,0,1,0
+  setPt myPos,0,0
+  put NIL into winPtr@.refCon
+  put LNew(RectA,RectB,myPos,700,winPtr,TRUE,TRUE,FALSE,TRUE) into myList
+  if myList = NIL then
+    closeXWindow winPtr
+    return "Error: Couldn't create List."
+  end if
+  put newHandle(4) into winPtr@.refCon
+  put myList into winPtr@.refCon@@.ptrType[1]
+  showWindow winPtr
+end ListWindow
+
+on openEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  setXWIdleTime winPtr,0
+  XWAllowReEntrancy winPtr,TRUE,TRUE
+  addList winPtr
+end openEvent
+
+on addList winPtr
+  setPort winPtr
+  put newPtr(8) into box
+  put winPtr@.refCon@@.ptrType[1] into myList
+  LDoDraw FALSE, myList
+  LUpdate winPtr@.visRgn, myList
+  MakeLine "This is plain text",myList
+  MakeLine "You can also set the <Istyle of each line",myList
+  MakeLine "(-",myList
+  MakeLine "(Support for dividers and",myList
+  MakeLine "Disabled items is included",myList
+  MakeLine "-",myList
+  MakeLine "<UDividers can be black or gray",myList
+  MakeLine "Command chars/S",myList
+  MakeLine "And Check Marks !•",myList
+  MakeLine "!◊/KAre no problem!",myList
+  MakeLine "(<OYou can disable them, too/µ!Y",myList
+  LDoDraw TRUE, myList
+  invalRect winPtr@.portRect
+  disposPtr box
+end addList
+
+on makeLine theStr,myList
+  put LAddRow(1,myList@@.dataBounds.bottom,myList) into rowNum
+  SetPt theCell,0,rowNum
+  put getNewTextHandle(theStr) into strHand
+  HLock strHand
+  LSetCell strHand@,getHandleSize(strHand),theCell,myList
+  HUnlock strHand
+  disposHandle strHand
+end makeLine
+
+on closeEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  if myList ≠ NIL then
+    LDispose myList
+  end if
+  return TRUE
+end closeEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  setPort winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  beginUpdate winPtr
+  clipRect winPtr@.portRect
+  eraseRect winPtr@.portRect
+  put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+  add kTopBarHeight to rectA.top
+  clipRect rectA
+  drawGrowIcon winPtr
+  clipRect winPtr@.portRect
+  LUpdate winPtr@.visRgn,myList
+  put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+  put rectA.top +kTopBarHeight into rectA.bottom
+  clipRect rectA
+  moveTo 0,kTopBarHeight-1
+  lineTo rectA.right,kTopBarHeight-1
+  clipRect winPtr@.portRect
+  endUpdate winPtr
+end updateEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  if frontDocWindow() ≠ winPtr then
+    selectWindow winPtr -- make it active ...
+  end if
+  put FindWindow(eventInfoPtr@.event.where,winPtr) into temp
+  if temp is inContent then
+    put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+    put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+    add kTopBarHeight to RectA.top
+    setPort winPtr
+    put eventInfoPtr@.event.where into myPos
+    globalToLocal myPos
+    if ptInRect(myPos,rectA) then
+      if LClick(myPos, eventInfoPtr@.event.modifiers,¬
+      myList) then -- double click
+        
+      else
+        
+      end if
+    else
+      -- not in list
+    end if
+  else if temp is inDrag then
+    setRect rectA,-32000,-32000,32000,32000
+    DragWindow winPtr,eventInfoPtr@.event.where,rectA
+  else if temp is inGoAway then
+    if trackGoAway(winPtr,eventInfoPtr@.event.where) then
+      CloseXWindow winPtr
+    end if
+  else if temp is inZoomIn or temp is inZoomOut then
+    if trackBox(winPtr,eventInfoPtr@.event.where, temp) then
+      zoomWindow winPtr,temp,TRUE
+      resizeList winPtr
+    end if
+  else if temp is inGrow then
+    put kMinWindowV into rectA.top
+    put kMinWindowH into rectA.left
+    put kMaxWindowV into rectA.bottom
+    put kMaxWindowH into rectA.right
+    put growWindow(winPtr,eventInfoPtr@.event.where,rectA) into newSize
+    if newSize ≠ nil then
+      put LoWord(newSize) into newWidth
+      put HiWord(newSize) into newHeight
+      SizeWindow winPtr, newWidth, newHeight, TRUE
+      resizeList winPtr
+    end if
+  end if
+end mouseDownEvent
+
+function cursorWithinEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if FindWindow(eventInfoPtr@.event.where,winPtr) is inContent then
+    setCursor arrow
+  end if
+  return FALSE
+end cursorWithinEvent
+
+on resizeList winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  put winPtr@.portRect.longIntType[1] into RectA.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into RectA.longIntType[2]
+  add kTopBarHeight to RectA.top
+  subtract 15 from RectA.right
+  subtract 15 from RectA.bottom
+  subtract 1 from RectA.left
+  put rectA.right - rectA.left into breit
+  put rectA.bottom - rectA.top into hoch
+  LSize breit,hoch,myList
+  invalRect winPtr@.portRect
+end resizeList
+
+on activateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon@@.ptrType[1] into myList
+  InvalRect winPtr@.portRect  --ensure grow icon gets redrawn
+  --activation sequence
+  if bitAnd(eventInfoPtr@.event.modifiers,activeFlag) ≠ 0 then
+    LActivate TRUE,myList
+  else
+    LActivate FALSE,myList
+  end if
+end activateEvent
+
+

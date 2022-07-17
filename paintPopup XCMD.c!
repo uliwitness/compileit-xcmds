@@ -1,0 +1,37 @@
+on paintPopup strRect
+  if strRect = "?" then
+    return "paintPopup <rect>"
+  else if strRect = "!" then
+    return "paintPopup 1.0, © 1996 by Uli Kusterer, all rights reserved."
+  end if
+  put newPtr(8) into myRect
+  put newPtr(8) into aRect
+  strToRect strRect,myRect@
+  put (myRect@.right - myRect@.left) div 8 into iconCount
+  put myRect@.left into aRect@.left
+  put myRect@.top into aRect@.top
+  put myRect@.left +8 into aRect@.right
+  put myRect@.top + 18 into aRect@.bottom
+  put GetCIcon(238) into theIcon
+  if theIcon ≠ nil then -- there is a cicn
+    PlotCIcon aRect@,theIcon
+    ReleaseResource theIcon
+  end if
+  put GetCIcon(239) into theIcon
+  if theIcon ≠ nil then -- there is a cicn
+    repeat iconCount-2
+      add 8 to aRect@.left
+      add 8 to aRect@.right
+      PlotCIcon aRect@,theIcon
+    end repeat
+    ReleaseResource theIcon
+  end if
+  put myRect@.right -18 into myRect@.left
+  put GetCIcon(240) into theIcon
+  if theIcon ≠ nil then -- there is a cicn
+    PlotCIcon myRect@,theIcon
+    ReleaseResource theIcon
+  end if
+  disposPtr myRect
+  disposPtr aRect
+end paintPopup

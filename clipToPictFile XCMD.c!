@@ -1,0 +1,102 @@
+on clipToPictFile fNam,fType
+  if fNam = "?" then
+    return "clipToPictFile <name>[,<creator>]"
+  else if fNam = "!" then
+    return "clipToPictFile 1.0, © 1996 by Uli Kusterer, all rights reserved."
+  end if
+  if length(fType) ≠ 4 then
+    put getNamedResource("STR ","Pict File Creator") into theTypeRes
+    if theTypeRes = NIL then
+      put "ttxt" into fType
+    else
+      detachResource theTypeRes
+      put hyperCardText(theTypeRes) into theTypeRes
+      put char 1 to 4 of theTypeRes into fType
+    end if
+  end if
+  put newHandle(0) into myPict
+  put getScrap(myPict,"PICT",theOffs) into theLen
+  if theLen = -102 then return "Error: Clipboard is no picture."
+  if theLen < 0 then return "Error: Couldn't get picture."
+  put create(fNam,0,fType,"PICT") into myErr
+  if myErr = -48 then
+    put FSDelete(fNam,0) into myErr
+    if myErr < 0 then
+      disposHandle myPict
+      return FileError(myErr)
+    end if
+    put create(fNam,0,fType,"PICT") into myErr
+    if myErr ≠ 0 then
+      disposHandle myPict
+      return FileError(myErr)
+    end if
+  else if myErr < 0 then
+    disposHandle myPict
+    return FileError(myErr)
+  end if
+  put FSOpen(fNam,0,theRef) into myErr
+  if myErr < 0 then
+    disposHandle myPict
+    return FileError(myErr)
+  end if
+  put newHandleClear(1) into zeroData
+  HLock zeroData
+  repeat 512 -- header
+    put 1 into theCnt
+    put FSWrite(theRef,theCnt,zeroData@) into myErr
+    if myErr < 0 then
+      disposHandle myPict
+      return FileError(myErr)
+    end if
+  end repeat
+  HUnlock zeroData
+  disposHandle zeroData
+  HLock myPict
+  put getHandleSize(myPict) into theCnt
+  put FSWrite(theRef,theCnt,myPict@) into myErr
+  if myErr < 0 then
+    disposHandle myPict
+    return FileError(myErr)
+  end if
+  HUnlock myPict
+  put FSClose(theRef) into myErr
+  disposHandle myPict
+end clipToPictFile
+
+function fileError myErr
+  if myErr = -33 then
+    return "Error: Directory is full."
+  else if myErr = -34 then
+    return "Error: Disk is full."
+  else if myErr = -35 then
+    return "Error: No such volume."
+  else if myErr = -36 then
+    return "Error: Read/Write Error."
+  else if myErr = -37 then
+    return "Error: Bad filename."
+  else if myErr = -38 then
+    return "Error: File not open."
+  else if myErr = -42 then
+    return "Error: Too many files open."
+  else if myErr = -43 then
+    return "Error: File not found."
+  else if myErr = -44 then
+    return "Error: Volume is locked."
+  else if myErr = -46 then
+    return "Error: Volume is locked."
+  else if myErr = -49 then
+    return "Error: File already open for writing."
+  else if myErr = -51 then
+    return "Error: Bad reference number."
+  else if myErr = -54 then
+    return "Error: File locked for writing."
+  else if myErr = -120 then
+    return "Error: Directory not found/Invalid search path."
+  else if myErr = -5000 then
+    return "Error: User hasn't got correct access to file."
+  else if myErr = -5025 then
+    return "Error: Already got folder of that name."
+  else
+    return "Error: Unknown #" & myErr
+  end if
+end fileError

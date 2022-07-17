@@ -1,0 +1,363 @@
+CodeResource "WDEF" 128
+
+Constant kGrowBoxSize = 16
+
+Constant kFrameCol = 52428
+Constant kShadeCol = 39321
+Constant kBlackCol = 0
+Constant kWhiteCol = 65535
+Constant kDisabCol = 32767
+
+pascal function Dialogue :L varCode:I, theWindow:P, nachricht:I, daten:L
+  if theWindow@.visible = TRUE then
+    if nachricht ≠ wNew and nachricht ≠ wCalcRgns and nachricht ≠ wHit¬
+    and nachricht ≠ wDispose then
+      put checkColor(theWindow) into hasColor
+    end if
+    if nachricht = wDraw then
+      if loWord(daten) = 0 then
+        draw_Frame varCode,theWindow,daten,hasColor
+      end if
+      return 0
+    else if nachricht = wHit then
+      return report_Hits(varCode,theWindow,daten)
+    else if nachricht = wCalcRgns then
+      calc_Rgns varCode,theWindow,daten
+      return 0
+    else if nachricht = wNew then
+    else if nachricht = wDispose then
+    else if nachricht = wGrow then
+      grow_Rect varCode,theWindow,daten
+      return 0
+    else if nachricht = wDrawGIcon then
+      grow_Box varCode,theWindow,daten,hasColor
+      return 0
+    end if
+  else
+    return 0
+  end if
+end Dialogue
+
+on draw_Frame varCode,winPtr,daten,hasColor
+  setColorPort hasColor
+  put newRgn() into myRgn
+  put newPtr(8) into fData
+  diffRgn winPtr@.strucRgn,winPtr@.contRgn,myRgn
+  eraseRgn myRgn
+  disposeRgn myRgn
+  if winPtr@.hilited = FALSE and hasColor then
+    setColor kDisabCol,kDisabCol,kDisabCol
+  else
+    setColor kBlackCol,kBlackCol,kBlackCol
+  end if
+  put windowRect(winPtr) into aRect
+  textFont winPtr@.txFont
+  textFace winPtr@.txFace
+  textSize winPtr@.txSize
+  GetFontInfo fData@
+  GetWTitle winPtr,theTx
+  if theTx ≠ "" then
+    subtract fData@.left +4 +fData@.top from aRect@.top
+    moveTo aRect@.left +5, aRect@.top +fData@.top
+    drawString theTx
+    moveTo aRect@.left +2, aRect@.top +fData@.top +fData@.left +1
+    lineTo aRect@.right -3, aRect@.top +fData@.top +fData@.left +1
+    moveTo aRect@.left +2, aRect@.top +fData@.top +fData@.left +3
+    lineTo aRect@.right -3, aRect@.top +fData@.top +fData@.left +3
+  end if
+  insetRect aRect@,-1,-1
+  frameRect aRect@
+  if hasColor then
+    setColor kFrameCol,kFrameCol,kFrameCol
+    insetRect aRect@,-1,-1
+    frameRect aRect@
+    insetRect aRect@,-1,-1
+    frameRect aRect@
+    insetRect aRect@,-1,-1
+    frameRect aRect@
+    insetRect aRect@,-1,-1
+    frameRect aRect@
+    setColor kWhiteCol,kWhiteCol,kWhiteCol
+    moveTo aRect@.left,aRect@.bottom -1
+    lineTo aRect@.left,aRect@.top
+    lineTo aRect@.right -1,aRect@.top
+    moveTo aRect@.left +3,aRect@.bottom -4
+    lineTo aRect@.right -4,aRect@.bottom -4
+    lineTo aRect@.right -4,aRect@.top +3
+    insetRect aRect@,-1,-1 -- outter frame
+    if winPtr@.hilited = FALSE then
+      setColor kDisabCol,kDisabCol,kDisabCol
+    else
+      setColor kBlackCol,kBlackCol,kBlackCol
+    end if
+  else
+    insetRect aRect@,-5,-5
+  end if
+  frameRect aRect@
+  if hasColor then
+    setColor kShadeCol,kShadeCol,kShadeCol
+  else
+    penPat gray
+  end if
+  moveTo aRect@.left +4,aRect@.bottom -5
+  lineTo aRect@.left +4,aRect@.top +4
+  lineTo aRect@.right -4,aRect@.top +4
+  moveTo aRect@.left +2,aRect@.bottom -2
+  lineTo aRect@.right -2,aRect@.bottom -2
+  lineTo aRect@.right -2,aRect@.top +2
+  if hasColor then
+    setColor kBlackCol,kBlackCol,kBlackCol
+  else
+    penPat black
+  end if
+  textFont 0
+  textFace 0
+  textSize 0
+  disposPtr aRect
+  disposPtr fData
+end draw_Frame
+
+on calc_Rgns varCode,winPtr,daten
+  put windowRect(winPtr) into aRect
+  rectRgn winPtr@.contRgn,aRect@
+  put newPtr(8) into fData
+  insetRect aRect@,-6,-6
+  getPort aPort
+  put aPort@.txFont into svFont
+  put aPort@.txFace into svFace
+  put aPort@.txSize into svSize
+  textFont winPtr@.txFont
+  textFace winPtr@.txFace
+  textSize winPtr@.txSize
+  GetFontInfo fData@
+  GetWTitle winPtr,theTx
+  if theTx ≠ "" then
+    subtract fData@.top from aRect@.top
+    subtract fData@.left +4 from aRect@.top
+  end if
+  rectRgn winPtr@.strucRgn,aRect@
+  disposPtr aRect
+  disposPtr fData
+  textFont svFont
+  textFace svFace
+  textSize svSize
+end calc_Rgns
+
+function report_Hits varCode,winPtr,daten
+  put windowRect(winPtr) into aRect
+  put newPtr(8) into gbRect
+  put newPtr(8) into fData
+  put aRect@.longIntType[2] into gbRect@.longIntType[2]
+  put aRect@.longIntType[2] into gbRect@.longIntType[1]
+  subtract kGrowBoxSize from gbRect@.left
+  subtract kGrowBoxSize from gbRect@.top
+  add 5 to gbRect@.right
+  add 5 to gbRect@.bottom
+  if ptInRect(daten,gbRect@) then
+    put wInGrow into retVal
+  else if ptInRect(daten,aRect@) then
+    put wInContent into retVal
+  else
+    insetRect aRect@,-6,-6
+    getPort aPort
+    put aPort@.txFont into svFont
+    put aPort@.txFace into svFace
+    put aPort@.txSize into svSize
+    textFont winPtr@.txFont
+    textFace winPtr@.txFace
+    textSize winPtr@.txSize
+    GetFontInfo fData@
+    GetWTitle winPtr,theTx
+    if theTx ≠ "" then
+      subtract fData@.top from aRect@.top
+      subtract fData@.left +4 from aRect@.top
+    end if
+    textFont svFont
+    textFace svFace
+    textSize svSize
+    if ptInRect(daten,aRect@) then
+      put wInDrag into retVal
+    else
+      put wNoHit into retVal
+    end if
+  end if
+  disposPtr gbRect
+  disposPtr fData
+  disposPtr aRect
+  return retVal
+end report_Hits
+
+on grow_Box varCode,winPtr,daten,hasColor
+  setColorPort hasColor
+  put newRgn() into svClip
+  getClip svClip
+  put windowRect(winPtr) into aRect
+  insetRect aRect@,-1,-1
+  put newPtr(8) into growIconRect
+  put aRect@.right -kGrowBoxSize into growIconRect@.left
+  put aRect@.bottom -kGrowBoxSize into growIconRect@.top
+  put aRect@.right +2 into growIconRect@.right
+  put aRect@.bottom +2 into growIconRect@.bottom
+  put newRgn() into myClip
+  copyRgn winPtr@.visRgn,myClip
+  insetRgn myClip,-1,-1
+  offsetRgn myClip,aRect@.left,aRect@.top
+  setClip myClip
+  disposeRgn myClip
+  if hasColor and winPtr@.hilited ≠ FALSE then
+    setColor kFrameCol,kFrameCol,kFrameCol
+    paintRect growIconRect@
+    setColor 0,0,0
+  else if winPtr@.hilited = FALSE then
+    eraseRect growIconRect@
+    setColor 32767,32767,32767
+  else
+    eraseRect growIconRect@
+  end if
+  drawULRect growIconRect
+  if winPtr@.hilited ≠ FALSE then
+    put newPtr(8) into giRect
+    put growIconRect@.left +4 into giRect@.left
+    put growIconRect@.top +4 into giRect@.top
+    put growIconRect@.right -5 into giRect@.right
+    put growIconRect@.bottom -5 into giRect@.bottom
+    if hasColor then
+      frameRect giRect@
+      put newPtr(8) into clRect
+      put giRect@.longIntType[1] into clRect@.longIntType[1]
+      put giRect@.longIntType[2] into clRect@.longIntType[2]
+      add 1 to clRect@.left
+      add 1 to clRect@.top
+      setColor 52428,52428,52428
+      paintRect clRect@
+      add 1 to clRect@.left
+      add 1 to clRect@.top
+      setColor 0,0,0
+      frameRect clRect@
+      subtract 1 from clRect@.right
+      subtract 1 from clRect@.bottom
+      setColor 43690,43690,43690
+      paintRect clRect@
+      setColor 0,0,0
+    else
+      frameRect giRect@
+    end if
+    offsetRect giRect@,-3,-3
+    add 2 to giRect@.left
+    add 2 to giRect@.top
+    subtract 1 from giRect@.right
+    subtract 1 from giRect@.bottom
+    if hasColor then
+      frameRect giRect@
+      put giRect@.longIntType[1] into clRect@.longIntType[1]
+      put giRect@.longIntType[2] into clRect@.longIntType[2]
+      add 1 to clRect@.left
+      add 1 to clRect@.top
+      setColor 52428,52428,52428
+      paintRect clRect@
+      add 1 to clRect@.left
+      add 1 to clRect@.top
+      setColor 0,0,0
+      frameRect clRect@
+      subtract 1 from clRect@.right
+      subtract 1 from clRect@.bottom
+      setColor 48059,48059,48059
+      paintRect clRect@
+      disposPtr clRect
+      setColor 0,0,0
+    else
+      eraseRect giRect@
+      frameRect giRect@
+    end if
+    disposPtr giRect
+  else
+    setColor 0,0,0
+  end if
+  disposPtr growIconRect
+  disposPtr aRect
+  setClip svClip
+  disposeRgn svClip
+end grow_Box
+
+on grow_Rect varCode,winPtr,daten
+  GetWMgrPort bPort
+  setPort bPort
+  put newPtr(8) into fData
+  put newPtr(8) into growRect
+  put newPtr(8) into growIconRect
+  put daten@.longIntType[1] into growRect@.longIntType[1]
+  put daten@.longIntType[2] into growRect@.longIntType[2]
+  getPort aPort
+  put aPort@.txFont into svFont
+  put aPort@.txFace into svFace
+  put aPort@.txSize into svSize
+  textFont winPtr@.txFont
+  textFace winPtr@.txFace
+  textSize winPtr@.txSize
+  GetFontInfo fData@
+  GetWTitle winPtr,theTx
+  if theTx ≠ "" then
+    subtract fData@.top from growRect@.top
+    subtract fData@.left +4 from growRect@.top
+  end if
+  textFont svFont
+  textFace svFace
+  textSize svSize
+  insetRect growRect@,-1,-1
+  frameRect growRect@
+  put growRect@.longIntType[2] into growIconRect@.longIntType[1]
+  put growRect@.longIntType[2] into growIconRect@.longIntType[2]
+  subtract kGrowBoxSize from growIconRect@.left
+  subtract kGrowBoxSize from growIconRect@.top
+  drawULRect growIconRect
+  insetRect growRect@,-5,-5
+  frameRect growRect@
+  disposPtr growRect
+  disposPtr growIconRect
+  disposPtr fData
+end grow_Rect
+
+function windowRect winPtr
+  getPort aPort
+  setPort winPtr
+  put newPtr(8) into aRect
+  put winPtr@.portRect.longIntType[1] into aRect@.longIntType[1]
+  localToGlobal aRect@.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into aRect@.longIntType[2]
+  localToGlobal aRect@.longIntType[2]
+  setPort aPort
+  return aRect
+end windowRect
+
+on setColor rot,gruen,blau
+  put newPtr(6) into theColor
+  put rot into theColor@.integerType[1]
+  put gruen into theColor@.integerType[2]
+  put blau into theColor@.integerType[3]
+  RGBForeColor theColor@
+  disposPtr theColor
+end setColor
+
+on setColorPort hasColor
+  if hasColor = TRUE then
+    GetCWMgrPort aPort
+    setPort aPort
+  else
+    GetWMgrPort bPort
+    setPort bPort
+  end if
+end setColorPort
+
+function checkColor winPtr
+  put gestalt("qdrw",theVal) into theErr
+  put (bitAnd(theVal,1) ≠ 0) into hasColor
+  put GetMaxDevice(winPtr@.strucRgn@@.rgnBBox) into aDevice
+  put (hasColor and (aDevice@@.gdPMap@@.pixelSize ≥ 4)) into hasColor
+  return hasColor
+end checkColor
+
+on drawULRect aRect
+  moveTo aRect@.left,aRect@.bottom -1
+  lineTo aRect@.left,aRect@.top
+  lineTo aRect@.right -1,aRect@.top
+end drawULRect

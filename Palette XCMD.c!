@@ -1,0 +1,559 @@
+-- Fields of the palette record:
+recordOffset uWdefId:I @0
+recordOffset uInvBtns:I @2
+recordOffset uCloseBox:I @4
+recordOffset uFlags:I @4
+recordOffset uHilitedBtn:I @6
+recordOffset uPictId:I @8
+recordOffset uDimmId:I @10
+recordOffset uObjCount:I @12
+-- Object Types:
+Constant uBtnKind = 256
+Constant uFldKind = 0
+Constant uIconKind = 1
+Constant uEditKind = 2
+
+on Palette nme,hPos,vPos
+  if nme = "?" then
+    return "palette <palName>[,<hPos>,<vPos>]"
+  else if nme = "!" then
+    return "palette 1.0, © 1996 by Uli Kusterer."
+  end if
+  if windExists(nme) then return "Error: Duplicate window name."
+  put getNamedResource("CsPl",nme) into myData
+  if myData = NIL then return "Couldn't find palette."
+  put getResource("PICT",myData@@.uPictId) into plainPict
+  if plainPict = NIL then return "Couldn't find active picture."
+  put getResource("PICT",myData@@.uDimmId) into dimmPict
+  if dimmPict = NIL then return "Couldn't find dimmed picture."
+  put newPtr(8) into winBounds
+  if HPos+VPos = 0 then
+    put getGlobal(nme & "Global") into theStr
+    put (item 1 of theStr)+0 into HPos
+    put (item 2 of theStr)+0 into VPos
+  end if
+  put plainPict@@.picFrame.longIntType[1] into winBounds@.longIntType[1]
+  put plainPict@@.picFrame.longIntType[2] into winBounds@.longIntType[2]
+  offsetRect winBounds@,-winBounds@.left,-winBounds@.top
+  offsetRect winBounds@,hPos+0,vPos+0
+  put HPos & "," & VPos into theStr
+  setGlobal (nme & "Global"),theStr
+  localToGlobal winBounds@.longIntType[1]
+  localToGlobal winBounds@.longIntType[2]
+  put newXWindow(winBounds@,nme,FALSE,myData@@.uWdefId,TRUE,TRUE) into winPtr
+  if winPtr = NIL then
+    put newXWindow(winBounds@,nme,TRUE,myData@@.uWdefId,FALSE,TRUE) into winPtr
+  end if
+  disposPtr winBounds
+  if winPtr = NIL then return "Couldn't create window."
+  detachResource myData
+  put myData into winPtr@.refCon
+  setCloseBox winPtr,myData@@.uCloseBox =1
+  setPort winPtr
+  textFont 3
+  textSize 9
+  put 0 into myData@@.uFlags
+  showWindow winPtr
+end Palette
+
+on setCloseBox winPtr,theMode
+  if theMode = TRUE then
+    put 1 into winPtr@.goAwayFlag
+  else
+    put 0 into winPtr@.goAwayFlag
+  end if
+  -- update title bar
+  GetWTitle winPtr,theTitle
+  SetWTitle winPtr,theTitle
+end setCloseBox
+
+on openEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  XWAllowReEntrancy winPtr,TRUE,TRUE
+  setXWIdleTime winPtr,0
+end openEvent
+
+function closeEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon into myData
+  if myData ≠ NIL then
+    disposHandle myData
+  end if
+  getPort aPort
+  setPt aPos,0,0
+  localToGlobal aPos
+  setPort frontCardWindow()
+  globalToLocal aPos
+  setPort aPort
+  put loWord(aPos) & "," & hiWord(aPos) into theStr
+  GetWTitle winPtr,theTitle
+  setGlobal (theTitle & "Global"),theStr
+  return TRUE
+end closeEvent
+
+on mouseDownEvent eventInfoPtr
+  put newPtr(8) into arect
+  put eventInfoPtr@.eventWindow into winPtr
+  if frontWindow() ≠ winPtr then selectWindow winPtr
+  put FindWindow(eventInfoPtr@.event.where,eventInfoPtr@.eventWindow) into temp
+  if temp is inContent then
+    put eventInfoPtr@.event.where into myPos
+    globalToLocal myPos
+    hitMe winPtr,myPos
+  else if temp is inDrag then
+    setRect arect@,-32000,-32000,32000,32000
+    DragWindow winPtr,eventInfoPtr@.event.where,arect@
+  else if temp is inGoAway then
+    if trackGoAway(winPtr,eventInfoPtr@.event.where) then
+      CloseXWindow winPtr
+    end if
+    -- else if temp is inZoomIn or temp is inZoomOut then
+    --   if trackBox(winPtr,eventInfoPtr@.event.where, temp) then
+    --     zoomWindow winPtr,temp,TRUE
+    --   end if
+  end if
+  disposPtr arect
+end mouseDownEvent
+
+on hitMe winPtr,myPos
+  put winPtr@.refCon into myData
+  if bitAnd(myData@@.uFlags,1) = 0 then
+    put newPtr(8) into btnRect
+    put 14 into startPtr
+    put getHandleSize(myData) into maxiSize
+    put 1 into btnNum
+    HLock myData
+    add myData@ to startPtr
+    add myData@ to maxiSize
+    repeat until startPtr > maxiSize
+      put empty into theCmd
+      put startPtr@.longIntType into btnRect@.longIntType[1]
+      add 4 to startPtr
+      put startPtr@.longIntType into btnRect@.longIntType[2]
+      add 4 to startPtr
+      if startPtr@.integerType ≠ uBtnKind then
+        add 2 to startPtr
+        repeat until charToNum(startPtr@.charType) = 0
+          put startPtr@.charType after theCmd
+          add 1 to startPtr
+        end repeat
+        if ptInRect(myPos,btnRect@) then
+          exit repeat
+        end if
+        add 1 to startPtr
+        add 1 to btnNum
+      else
+        add 2 to startPtr
+        repeat until charToNum(startPtr@.charType) = 0
+          put startPtr@.charType after theCmd
+          add 1 to startPtr
+        end repeat
+        if ptInRect(myPos,btnRect@) then
+          put btnNum into myData@@.uHilitedBtn
+          if myData@@.uInvBtns = 3 then
+            penMode patXor
+            paintRect btnRect@
+            penMode patCopy
+            put 0 into myData@@.uHilitedBtn
+          else if myData@@.uInvBtns = 2 then
+            penMode patXor
+            frameRect btnRect@
+            penMode patCopy
+            put 0 into myData@@.uHilitedBtn
+          else
+            invalRect winPtr@.portRect
+          end if
+          runHandler theHandler("mouseUp",theCmd)
+          if myData@@.uInvBtns > 1 then
+            invalRect winPtr@.portRect
+          end if
+          exit repeat
+        end if
+        add 1 to startPtr
+        add 1 to btnNum
+      end if
+    end repeat
+    HUnlock myData
+    disposPtr btnRect
+  end if
+end hitMe
+
+function theHandler hNam,str
+  put number of lines of str into HNLC
+  put FALSE into inHandler
+  repeat with x = 1 to HNLC
+    if word 1 of line x of str = "on" and word 2 of line x of str = hNam then
+      put TRUE into inHandler
+    else if inHandler = TRUE and word 1 of line x of str = "end" and¬
+    word 2 of line x of str = hNam then
+      put FALSE into inHandler
+      exit repeat
+    else if inHandler = TRUE then
+      put return & line x of str after cmdList
+    end if
+  end repeat
+  delete line 1 of cmdList
+  return cmdList
+end theHandler
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon into myData
+  put newPtr(8) into btnRect
+  beginUpdate winPtr
+  if bitAnd(myData@@.uFlags,1) ≠ 0 then
+    put getPicture(myData@@.uDimmId) into thePicture
+    put 0 into btnRect@.longIntType[1]
+    put thePicture@@.integerType[4] - thePicture@@.integerType[2] into¬
+    btnRect@.integerType[3]
+    put thePicture@@.integerType[5] - thePicture@@.integerType[3] into¬
+    btnRect@.integerType[4]
+    drawPicture thePicture,btnRect@
+  else
+    put getPicture(myData@@.uPictId) into thePicture
+    put 0 into btnRect@.longIntType[1]
+    put thePicture@@.integerType[4] - thePicture@@.integerType[2] into¬
+    btnRect@.integerType[3]
+    put thePicture@@.integerType[5] - thePicture@@.integerType[3] into¬
+    btnRect@.integerType[4]
+    drawPicture thePicture,btnRect@
+  end if
+  put 14 into startPtr
+  put getHandleSize(myData) into maxiSize
+  put 1 into btnNum
+  HLock myData
+  add myData@ to startPtr
+  add myData@ to maxiSize
+  repeat until startPtr > maxiSize
+    put startPtr@.longIntType into btnRect@.longIntType[1]
+    add 4 to startPtr
+    put startPtr@.longIntType into btnRect@.longIntType[2]
+    add 4 to startPtr
+    if startPtr@.integerType = uBtnKind then
+      add 2 to startPtr
+      repeat until charToNum(startPtr@.charType) = 0
+        add 1 to startPtr
+      end repeat
+      if btnNum = myData@@.uHilitedBtn then
+        penMode patXor
+        if bitAnd(myData@@.uFlags,1) ≠ 0 then
+          frameRect btnRect@
+        else
+          if myData@@.uInvBtns =1 then
+            paintRect btnRect@
+          else
+            frameRect btnRect@
+          end if
+        end if
+        penMode patCopy
+      end if
+      add 1 to startPtr
+      add 1 to btnNum
+    else if startPtr@.integerType = uFldKind then
+      put 0 into stPLength
+      add 2 to startPtr
+      put startPtr into stPtr
+      repeat until charToNum(startPtr@.charType) = 0
+        add 1 to stPLength
+        add 1 to startPtr
+      end repeat
+      eraseRect btnRect@
+      insetRect btnRect@,3,1
+      TextBox stPtr,stPLength,btnRect@,TEJustLeft
+      if bitAnd(myData@@.uFlags,1) ≠ 0 then
+        penPat gray
+        penMode notPatBic
+        paintRect btnRect@
+        penMode patCopy
+        penPat black
+      end if
+      add 1 to startPtr
+      add 1 to btnNum
+    else if startPtr@.integerType = uEditKind then
+      put 0 into stPLength
+      add 2 to startPtr
+      put startPtr into stPtr
+      repeat until charToNum(startPtr@.charType) = 0
+        add 1 to stPLength
+        add 1 to startPtr
+      end repeat
+      eraseRect btnRect@
+      frameRect btnRect@
+      insetRect btnRect@,3,1
+      TextBox stPtr,stPLength,btnRect@,TEJustLeft
+      if bitAnd(myData@@.uFlags,1) ≠ 0 then
+        penPat gray
+        penMode notPatBic
+        paintRect btnRect@
+        penMode patCopy
+        penPat black
+      end if
+      add 1 to startPtr
+      add 1 to btnNum
+    else if startPtr@.integerType = uIconKind then
+      put empty into theCmd
+      put 0 into stPLength
+      add 2 to startPtr
+      repeat until charToNum(startPtr@.charType) = 0
+        put startPtr@.charType after theCmd
+        add 1 to startPtr
+      end repeat
+      put strToNum(theCmd) into iconID
+      showIcon iconID,btnRect
+      if bitAnd(myData@@.uFlags,1) ≠ 0 then
+        penPat gray
+        penMode notPatBic
+        paintRect btnRect@
+        penMode patCopy
+        penPat black
+      end if
+      add 1 to startPtr
+      add 1 to btnNum
+    end if
+  end repeat
+  HUnlock myData
+  endUpdate winPtr
+  disposPtr btnRect
+end updateEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put propNamePtr@.str255type into propName
+  put eventInfoPtr@.eventWindow into winPtr
+  put winPtr@.refCon into myData
+  if propName = "enabled" then
+    if theValue = FALSE then
+      if bitAnd(myData@@.uFlags,1) = 0 then
+        add 1 to myData@@.uFlags
+      end if
+      invalRect winPtr@.portRect
+    else if theValue = TRUE then
+      if bitAnd(myData@@.uFlags,1) ≠ 0 then
+        subtract 1 from myData@@.uFlags
+      end if
+      invalRect winPtr@.portRect
+    else
+      return TRUE
+    end if
+  else if propName = "hilitedButton" then
+    put theValue+0 into theNum
+    if theNum > myData@@.uObjCount then
+      put 0 into theNum
+    else if theNum < 0 then
+      put 0 into theNum
+    end if
+    put theNum into myData@@.uHilitedBtn
+    invalRect winPtr@.portRect
+  else if char 1 to 4 of propName = "text" then
+    put (char 5 to (number of chars of propName) of propName)+0 into theNum
+    if theNum > myData@@.uObjCount then
+      return TRUE
+    end if
+    setObjectText winPtr,theNum,theValue
+  else if propName = "update" then
+    invalRect winPtr@.portRect
+  else
+    return TRUE
+  end if
+  return FALSE
+end setPropEvent
+
+function GetPropEvent eventInfoPtr,propNamePtr
+  put propNamePtr@.str255type into propName
+  put eventInfoPtr@.eventWindow into winPtr
+  put GetWRefCon(winPtr) into myData
+  if propName = "enabled" then
+    return (bitAnd(myData@@.uFlags,1) = 0)
+  else if propName = "hilitedButton" then
+    return myData@@.uHilitedBtn
+  else if char 1 to 4 of propName = "text" then
+    put (char 5 to (number of chars of propName) of propName)+0 into theNum
+    if theNum > myData@@.uObjCount then
+      exit getPropEvent
+    end if
+    return objectText(theNum,winPtr)
+  else
+    exit getPropEvent
+  end if
+end getPropEvent
+
+function objectText thenum,winPtr
+  put winPtr@.refCon into myData
+  put 14 into startPtr
+  put getHandleSize(myData) into maxiSize
+  put 1 into btnNum
+  HLock myData
+  add myData@ to startPtr
+  add myData@ to maxiSize
+  repeat until startPtr > maxiSize
+    put empty into theCmd
+    add 8 to startPtr -- rect
+    -- kind
+    add 2 to startPtr
+    repeat until charToNum(startPtr@.charType) = 0
+      put startPtr@.charType after theCmd
+      add 1 to startPtr
+    end repeat
+    if btnNum = theNum then
+      exit repeat
+    end if
+    add 1 to startPtr
+    add 1 to btnNum
+  end repeat
+  HUnlock myData
+  disposPtr btnRect
+  return theCmd
+end objectText
+
+on app4Event eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if bitAnd(eventInfoPtr@.event.message,1) ≠ 0 then
+    showWindow winPtr
+  else
+    hideWindow winPtr
+  end if
+end app4Event
+
+on hidePalettesEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  hideWindow winPtr
+end hidePalettesEvent
+
+on showPalettesEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  showWindow winPtr
+end showPalettesEvent
+
+on showIcon iconID,theRect
+  put GetCIcon(iconID) into theIcon
+  if theIcon ≠ nil then -- there is a cicn
+    PlotCIcon theRect@,theIcon
+    ReleaseResource theIcon
+  else -- there is no cicn, try B/W version
+    put GetResource("ICON",iconID) into theIcon
+    if theIcon ≠ nil then -- icon load successfull?
+      PlotIcon theRect@,theIcon
+    end if
+  end if
+end showIcon
+
+function frontCardWindow
+  put frontDocWindow() into winPtr
+  repeat until winPtr@.windowKind = 30
+    put winPtr@.nextWindow into winPtr
+    if winPtr = NIL then return frontDocWindow() -- safety belt
+  end repeat
+  return winPtr
+end frontCardWindow
+
+function windExists nme
+  put frontWindow() into winPtr
+  repeat until winPtr = NIL
+    GetWTitle winPtr,theTitle
+    if theTitle = nme then return TRUE
+    put winPtr@.nextWindow into winPtr
+  end repeat
+  return FALSE
+end windExists
+
+function cursorWithinEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put eventInfoPtr@.event.where into mousePos
+  globalToLocal mousePos
+  if not ptInRgn(mousePos,winPtr@.visRgn) then
+    return TRUE
+  end if
+  put winPtr@.refCon into myData
+  put newPtr(8) into btnRect
+  put 14 into startPtr
+  put getHandleSize(myData) into maxiSize
+  HLock myData
+  add myData@ to startPtr
+  add myData@ to maxiSize
+  repeat until startPtr > maxiSize
+    put startPtr@.longIntType into btnRect@.longIntType[1]
+    add 4 to startPtr
+    put startPtr@.longIntType into btnRect@.longIntType[2]
+    add 4 to startPtr
+    if startPtr@.integerType = uEditKind then
+      put 1 into theCursID
+    else if startPtr@.integerType = uBtnKind then
+      put 128 into theCursID
+    else
+      put 0 into theCursID
+    end if
+    add 2 to startPtr
+    repeat until charToNum(startPtr@.charType) = 0
+      add 1 to startPtr
+    end repeat
+    if ptInRect(mousePos,btnRect@) then
+      if theCursID = 0 then
+        setCursor arrow
+        put TRUE into didIt
+      else
+        put getCursor(theCursID) into myCurs
+        setCursor myCurs@@
+        put TRUE into didIt
+      end if
+      exit repeat
+    end if
+    add 1 to startPtr
+  end repeat
+  HUnlock myData
+  disposPtr btnRect
+  if didIt ≠ TRUE then
+    setCursor arrow
+  end if
+  return FALSE
+end cursorWithinEvent
+
+on setObjectText winPtr,theNum,str
+  put winPtr@.refCon into myData
+  put 14 into startPtr
+  put getHandleSize(myData) into maxiSize
+  put 1 into btnNum
+  put newPtr(8) into btnRect
+  put newPtrClear(8) into redrawRect -- NEW
+  HLock myData
+  add myData@ to startPtr
+  add myData@ to maxiSize
+  repeat until startPtr > maxiSize
+    put empty into theCmd
+    put startPtr@.longIntType into btnRect@.longIntType[1]
+    add 4 to startPtr
+    put startPtr@.longIntType into btnRect@.longIntType[2]
+    add 4 to startPtr
+    -- kind
+    add 2 to startPtr
+    put startPtr into txBegin
+    put 0 into txLength
+    repeat until charToNum(startPtr@.charType) = 0
+      add 1 to txLength
+      add 1 to startPtr
+    end repeat
+    if btnNum = theNum then
+      put btnRect@.left into redrawRect@.left -- NEW
+      put btnRect@.top into redrawRect@.top -- NEW
+      put btnRect@.right into redrawRect@.right -- NEW
+      put btnRect@.bottom into redrawRect@.bottom -- NEW
+      exit repeat
+    end if
+    add 1 to startPtr
+    add 1 to btnNum
+  end repeat
+  put myData@ into startPtr
+  HUnlock myData -- NEW
+  disposPtr btnRect
+  add 1 to txLength
+  subtract startPtr from txBegin
+  subtract startPtr from maxiSize
+  put charsHandle(str) into myTx
+  put getHandleSize(myTx) into txLen
+  put newHandle((maxiSize-txLength)+txLen) into newData
+  HandleBlockMove myData,newData,txBegin,0,0
+  HandleBlockMove myTx,newData,txLen,0,txBegin
+  HandleBlockMove myData,newData,maxiSize -(txBegin+txLen),txBegin+txLength,txBegin+txLen
+  put newData into winPtr@.refCon
+  invalRect redrawRect@ -- NEW
+  disposPtr redrawRect@ -- NEW
+  disposHandle myData
+end setObjectText

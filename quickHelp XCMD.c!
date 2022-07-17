@@ -1,0 +1,75 @@
+on quickHelp str,pos
+  global gQuickHelpPrefs
+  put ((item 3 of pos - item 1 of pos) div 2) +item 1 of pos into hPos
+  put item 4 of pos +4 into vPos
+  put NewPtrClear(8) into box
+  if gQuickHelpPrefs = "white" then
+    put whiteColor into theColor
+  else if gQuickHelpPrefs = "red" then
+    put redColor into theColor
+  else if gQuickHelpPrefs = "green" then
+    put greenColor into theColor
+  else if gQuickHelpPrefs = "blue" then
+    put blueColor into theColor
+  else if gQuickHelpPrefs = "cyan" then
+    put cyanColor into theColor
+  else if gQuickHelpPrefs = "magenta" then
+    put magentaColor into theColor
+  else if gQuickHelpPrefs = "yellow" then
+    put yellowColor into theColor
+  else
+    put yellowColor into theColor
+  end if
+  if char 1 to 5 of str = "##STR" then
+    delete char 1 to 5 of str
+    put GetIndString(item 1 of str,item 2 of str) into str
+    if str = empty then return "Error: Couldn't read STR# resource."
+  end if
+  TextFont 3
+  TextSize 9
+  TextFace 0
+  put 0 into ow
+  repeat with x = 1 to (number of lines of str)
+    put StringWidth(line x of str) into sw
+    if sw > ow then put sw into ow
+  end repeat
+  put (number of lines of str * 13) into recHeight
+  put hpos - (ow div 2) into recLeft
+  put hPos + (ow div 2) into recRight
+  put vpos + recHeight into recBottom
+  SetRect box@,recLeft,vpos,recRight,recBottom
+  InsetRect box@,-4,-2
+  foreColor theColor
+  PenPat gray
+  PaintRect box@
+  foreColor blackColor
+  PenPat black
+  FrameRect box@
+  repeat with x = 1 to (number of lines of str)
+    put StringWidth(line x of str) into sw
+    MoveTo hPos - (sw div 2),vPos -4 + (x * 13)
+    DrawString line x of str
+  end repeat
+  wait until mouseLoc() is not within pos
+  eraseRect box@
+  invalRect box@
+  disposePtr box
+end quickHelp
+
+function getIndString strListID,index
+  put GetResource("STR#",strListID) into ahandle
+  if ahandle = nil then return empty
+  put ahandle@.ptrtype into aptr
+  put index -1 into counter
+  if counter >= aptr@.integertype or counter<0 then return empty
+  add 2 to aptr
+  HLock ahandle
+  repeat while counter >0
+    add chartonum(aptr@.chartype) +1 to aptr
+    subtract 1 from counter
+  end repeat
+  put aptr@.Str255type into theString
+  HUnlock ahandle
+  ReleaseResource ahandle
+  return theString
+end GetIndString

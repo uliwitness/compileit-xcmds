@@ -1,0 +1,134 @@
+GLOBAL myEvent:R[16], myQuit:B, hcMenus:P
+GLOBAL arect:R, cardWindow:P, cardID:I
+
+on TB_Editor mBarID
+  global TB_QuitGlobal
+  createMenus mBarID
+  put FALSE into TB_QuitGlobal
+  put FALSE into myQuit
+  put short id of this cd into cardID
+  put the id of card window into cardWindow
+  repeat until myQuit = TRUE
+    put waitNextEvent(everyEvent, myEvent, 15, NIL) into haveEvent
+    if haveEvent = TRUE then
+      get myEvent.what
+      if it = mouseDown then
+        mouseDown_Evt
+      else if it = keyDown or it = autoKey then
+        keyDown_Evt
+      else if it = updateEvt then
+        if myEvent.message = cardWindow then
+          update_Evt
+        else
+          sendHcEvent myEvent
+        end if
+      else
+        sendHcEvent myEvent
+      end if
+      checkWhereVR
+    else
+      sendCardMessage "TB_Idle"
+      checkCursor
+    end if
+    if TB_QuitGlobal = TRUE then put TRUE into myQuit
+  end repeat
+  setMenuBar hcMenus
+  drawMenuBar
+  disposHandle hcMenus
+end TB_Editor
+
+on checkCursor
+  global TB_Cursor
+  getMouse mypos
+  put frontDocWindow() into winPtr
+  if winPtr@.windowKind = 30 then
+    if ptInRgn(mypos,winPtr@.visRgn) then
+      if TB_Cursor = 0 then
+        setCursor arrow
+      else
+        put getCursor(TB_Cursor) into myCurs
+        setCursor myCurs@@
+      end if
+    else
+      setCursor arrow
+    end if
+  else
+    setCursor arrow
+  end if
+end checkCursor
+
+on checkWhereVR
+  put ID of card window into theID
+  if theID ≠ cardWindow then
+    put theID into cardWindow
+    invalRect cardWindow@.portRect
+    invalRect cardWindow@.portRect
+    put short ID of this card into cardID
+    sendCardMessage "TB_CardChange"
+    sendCardMessage "TB_WindowChange"
+  else
+    put short ID of this card into theID
+    if theID ≠ cardID then
+      invalRect cardWindow@.portRect
+      put theID into cardID
+      sendCardMessage "TB_CardChange"
+    end if
+  end if
+end checkWhereVR
+
+on mouseDown_Evt
+  put findWindow(myEvent.where,winPtr) into thePart
+  if thePart = inMenuBar then
+    sendHcEvent myEvent
+  else if thePart = inContent and winPtr = cardWindow then
+    put myEvent.where into myPos
+    globalToLocal myPos
+    PointToStr myPos,theStr
+    sendCardMessage "TB_Click" && quote & theStr & quote
+  else if thePart = inGoAway and winPtr = cardWindow then
+    sendCardMessage "TB_CloseWindow"
+    sendHcEvent myEvent
+  else
+    sendHcEvent myEvent
+  end if
+end mouseDown_Evt
+
+on keyDown_Evt
+  put numtochar(BitAnd(myEvent.message, charCodeMask)) into key
+  put bitAnd(myEvent.modifiers, controlKey) ≠ 0 into isControlKey
+  put bitAnd(myEvent.modifiers, cmdKey) ≠ 0 into isCommandKey
+  put bitAnd(myEvent.modifiers, shiftKey) ≠ 0 into isShiftKey
+  put bitAnd(myEvent.modifiers, alphaLock) ≠ 0 into isShiftLockKey
+  put bitAnd(myEvent.modifiers, optionKey) ≠ 0 into isOptionKey
+  if isCommandKey <> 0 then
+    put menuKey(key) into itemChosen
+    if hiWord(itemChosen) ≠ 0 then
+      sendHcEvent myEvent
+    else
+      sendCardMessage ("TB_KeyDown" && key & "," & isCommandKey & "," & isShiftKey & "," & isShiftLockKey & "," & isOptionKey & "," & isControlKey)
+    end if
+  else
+    sendCardMessage ("TB_KeyDown" && key & "," & isCommandKey & "," & isShiftKey & "," & isShiftLockKey & "," & isOptionKey & "," & isControlKey)
+  end if
+end keyDown_Evt
+
+on update_Evt
+  setPort cardWindow
+  beginUpdate cardWindow
+  sendHcMessage "go this card"
+  if getNamedResource("XCMD","TB_Update") ≠ NIL then
+    TB_Update cardWindow
+  end if
+  endUpdate cardWindow
+end update_Evt
+
+on createMenus mBarID
+  hiliteMenu 0
+  put getMenuBar() into hcMenus
+  if mBarID+0 = 0 then put 7701 into mBarID
+  put GetNewMbar(mBarID) into myMenus
+  setMenuBar myMenus
+  disposHandle myMenus
+  sendCardMessage "TB_ResetMenus"
+  drawMenuBar
+end createMenus

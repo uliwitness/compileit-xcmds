@@ -1,0 +1,199 @@
+GLOBAL arect:R, myEvent:R[16], theQuit:B
+
+RecordOffset items:L @156
+
+function simpleDialog resId,str
+  if resID = "?" then
+    return "put|get simpleDialog(<resID>,<value list>)"
+  else if resID = "!" then
+    return "simpleDialog, © 1996 by Uli Kusterer, all rights reserved."
+  else
+    put getNewDialog(resId+0, NIL, pointer(-1)) into dlogPtr
+    if dlogPtr = NIL then return "Error: Couldn't create window."
+    setupDialog dlogPtr,str
+    showWindow dlogPtr
+    setCursor arrow
+    put FALSE into theQuit
+    setRect arect,-32000,-32000,32000,32000
+    repeat until theQuit = TRUE
+      put waitNextEvent(everyEvent, myEvent, 15, NIL) into haveEvent
+      if haveEvent then
+        if isDialogEvent(myEvent) then
+          if myEvent.what = keyDown then
+            put BitAnd(myEvent.message,charCodeMask) into theCharNum
+            if theCharNum = 13 then -- return
+              put TRUE into theQuit
+              handleMouseDown dlogPtr,1,str
+              put 1 into itemHit
+            else if theCharNum = 3 then -- enter
+              put TRUE into theQuit
+              handleMouseDown dlogPtr,1,str
+              put 1 into itemHit
+            else if theCharNum = 27 then -- escape
+              put TRUE into theQuit
+              handleMouseDown dlogPtr,2,str
+              put 2 into itemHit
+            else if theCharNum = 46 and¬
+            BitAnd(myEvent.modifiers,cmdKey) ≠ 0 then -- cmd.-period
+              put TRUE into theQuit
+              handleMouseDown dlogPtr,2,str
+              put 2 into itemHit
+            else
+              put dialogSelect(myEvent,dlogPtr,itemHit) into haveEvent
+            end if
+          else
+            put dialogSelect(myEvent,dlogPtr,itemHit) into haveEvent
+            if haveEvent then
+              if myEvent.what = mouseDown then
+                handleMouseDown dlogPtr,itemHit,str
+              end if
+            end if
+          end if
+        else
+          if myEvent.what = mouseDown then
+            put findWindow(myEvent.where,thisWindow) into clickPlace
+            if thisWindow = dlogPtr and clickPlace = inDrag then
+              setRect arect,-32000,-32000,32000,32000
+              dragWindow dlogPtr, myEvent.where, arect
+            else
+              sysbeep 10
+            end if
+          else if myEvent.what = updateEvt then
+            sendHcEvent myEvent
+          else if myEvent.what = mouseDown then
+            sysbeep 10
+          else if myEvent.what = keyDown then
+            sysbeep 10
+          end if
+        end if
+      else
+        if isDialogEvent(myEvent) then
+          put dialogSelect(myEvent,dlogPtr,itemHit) into gotEvent
+        end if
+      end if
+    end repeat
+    put ergebnis(dlogPtr,itemHit,str) into str
+    disposDialog dlogPtr
+    return str
+  end if
+end simpleDialog
+
+on setupDialog dlogptr,str
+  put dlogPtr@.items@@.integerType[1] +1 into itemCount
+  repeat with x = 1 to itemCount
+    put line x of str into theStr
+    GetDItem dlogPtr,x,itemType,itemHandle,arect
+    if itemType = 4 then -- button
+      if theStr ≠ empty then
+        SetCTitle itemHandle,theStr
+      end if
+      Draw1Control itemHandle
+    else if itemType = 5 then -- checkBox
+      if item 2 of theStr ≠ empty then
+        SetCTitle itemHandle,item 2 of theStr
+      end if
+      if item 1 of theStr = "on" or item 1 of theStr = "TRUE" then
+        SetCtlValue itemHandle,1
+      else
+        SetCtlValue itemHandle,0
+      end if
+      Draw1Control itemHandle
+    else if itemType = 6 then -- radioButton
+      if item 3 of theStr ≠ empty then
+        SetCTitle itemHandle,item 3 of theStr
+      end if
+      -- item 2: group
+      if item 1 of theStr = "on" or item 1 of theStr = "TRUE" then
+        SetCtlValue itemHandle,1
+      else
+        SetCtlValue itemHandle,0
+      end if
+      Draw1Control itemHandle
+    else if itemType = 8 then -- statText
+      if theStr ≠ empty then
+        SetIText itemHandle,theStr
+      end if
+    else if itemType = 16 then -- editText
+      if item 1 of theStr ≠ empty then
+        SetIText itemHandle,item 1 of theStr
+      end if
+      if item 2 of theStr = "select" or item 2 of theText = "TRUE" then
+        put dlogPtr@.textH into myTEHandle
+        TEDeactivate myTEHandle
+        SelIText dlogPtr,x,0,32767
+        put myTEHandle into dlogPtr@.textH
+        TEActivate myTEHandle
+      end if
+    end if
+  end repeat
+end setupDialog
+
+on handleMouseDown dlogptr,x,str
+  put dlogPtr@.items@@.integerType[1] +1 into itemCount
+  put line x of str into theStr
+  GetDItem dlogPtr,x,itemType,itemHandle,arect
+  if itemType = 4 then -- button
+    if theQuit = TRUE then
+      hiliteControl itemHandle,1
+      Draw1Control itemHandle
+      put tickCount() into tkStart
+      repeat until tickCount() > tkStart+4
+      end repeat
+    else
+      put TRUE into theQuit
+    end if
+  else if itemType = 5 then -- checkBox
+    if getCtlValue(itemHandle) = 0 then
+      SetCtlValue itemHandle,1
+    else
+      SetCtlValue itemHandle,0
+    end if
+    Draw1Control itemHandle
+  else if itemType = 6 then -- radioButton
+    put (item 2 of theStr)+0 into aGroup
+    repeat with y = 1 to itemCount
+      if (item 2 of line y of str)+0 = aGroup+0 then
+        GetDItem dlogPtr,y,itemType,itemHandle,arect
+        if itemType ≠ 6 then next repeat
+        SetCtlValue itemHandle,0
+        Draw1Control itemHandle
+      end if
+    end repeat
+    GetDItem dlogPtr,x,itemType,itemHandle,arect
+    SetCtlValue itemHandle,1
+    Draw1Control itemHandle
+  end if
+end handleMouseDown
+
+function ergebnis dlogPtr,itemHit,str
+  put dlogPtr@.items@@.integerType[1] +1 into itemCount
+  repeat with x = 1 to itemCount
+    GetDItem dlogPtr,x,itemType,itemHandle,arect
+    if itemType = 4 then -- button
+      if x = itemHit then
+        put "HIT" into line x of str
+      else
+        put "" into line x of str
+      end if
+    else if itemType = 5 then -- checkBox
+      if getCtlValue(itemHandle) = 1 then
+        put "TRUE" into line x of str
+      else
+        put "FALSE" into line x of str
+      end if
+    else if itemType = 6 then -- radioButton
+      if getCtlValue(itemHandle) = 1 then
+        put "TRUE" into line x of str
+      else
+        put "FALSE" into line x of str
+      end if
+    else if itemType = 8 then -- statText
+      GetIText itemHandle,theStr
+      put theStr into line x of str
+    else if itemType = 16 then -- editText
+      GetIText itemHandle,theStr
+      put theStr into line x of str
+    end if
+  end repeat
+  return str
+end ergebnis

@@ -1,0 +1,134 @@
+-- ©1992 Heizer Software. All Rights Reserved.
+-- Registered users of CompileIt! may freely use this code for any purpose they choose.
+
+-- A fancy prompt xWindoid. Displays window of myWidth and myHeight with string. PositionString is a single line of HyperTalk executed on idle if supplied. You can change string to some other text by setting the prompt property of this window, only the text that is different from the previous string is redrawn to minimize flashing (lines are compared to determine where the differences are so all lines starting with the first different line will be redrawn).
+
+GLOBAL aRect:Rect[8] -- temp rect structure
+
+on Status myWidth,myHeight,string,positionString
+  put the rect of the card window into myRect
+  put item 1 of myRect into x
+  put item 2 of myRect into y
+  put item 3 of myRect into x1
+  put item 4 of myRect into y1
+  if myWidth is empty then put 120 into myWidth
+  if myHeight is empty then put 60 into myHeight
+  put (x1 - (x+myWidth)) div 2 into L
+  put (y1 -(y+myHeight)) div 2 into T
+  setRect aRect, L,T,L+myWidth,T+myHeight -- create a rectangle centered on the card window
+  localToGlobal arect.LongIntType[1] -- convert rectangle to global cooridinates
+  localToGlobal arect.LongIntType[2] -- convert rectangle to global cooridinates
+  getPort savePort
+ -- change this next line to adjust window name, style, etc.
+  put NewXWindow(aRect,"BM_Status",true,dBoxProc,false,true) into winPtr -- open the window
+  if winPtr is not nil then
+    selectWindow winPtr
+    if positionString is empty then put "!!" into posString else put positionString into posString
+    put GetNewTextHandle(posString) into hand2 -- get handle to idletime string
+    if string is not empty then put GetNewTextHandle(string) into hand1 else put nil into hand1
+    put NewHandle(8) into refHandle -- handle to our private data structure
+    put hand1 into refHandle@@.longIntType[1] -- store prompt string
+    put hand2 into refHandle@@.longIntType[2] -- store idletime string
+    setPort winPtr
+	   GetFNum "Geneva",num
+    TextFont num -- Geneva
+    TextSize 9 -- 9 point
+    TextFace 1 -- bold
+    setWRefCon winPtr,refHandle -- store our private data
+    InvalRect winPtr@.portRect -- force an update event so we draw the prompt string
+    setPort savePort
+  end if
+end Status
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  XWAllowReEntrancy winPtr, true, true -- tell HC we are reentrant
+  XWAlwaysMoveHigh winPtr, true -- move us high in memory
+  SetXWIdleTime winPtr,1 -- ask HyperCard to send us idle events as often as possible
+end OpenEvent
+
+on IdleEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  put GetWRefCon(winPtr) into dataHand
+  if dataHand is nil then exit idleEvent
+  if dataHand@@.longIntType[2] is nil then -- is there something to do?
+    SetXWIdleTime winPtr,0 -- no, something when wrong so tell HC to stop sending these events
+    exit idleEvent
+  end if
+  put HyperCardText(dataHand@@.longIntType[2]) into posString -- user supplied command
+  HyperCardOwns posString -- tell CompileIt! we own this handle so it won't dispose it
+  if posString is "!!" then -- did user tell us to do something on idle?
+    SetXWIdleTime winPtr,0 -- no, so tell HC to stop sending these events
+    exit idleEvent
+  end if
+  SendHCMessage posString -- do what the user wanted
+end IdleEvent
+
+on CloseEvent eventInfoPtr
+  put GetWRefCon(eventInfoPtr@.eventWindow) into dataHand -- get private data
+  if dataHand is not nil then -- if present then dispose of it
+    if dataHand@@.longIntType[1] is not nil then disposHandle dataHand@@.longIntType[1]
+    if dataHand@@.longIntType[2] is not nil then disposHandle dataHand@@.longIntType[2]
+    disposHandle dataHand
+  end if
+  return true -- tell HC it's ok to close us
+end CloseEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put propNamePtr@.str255Type into property
+  put eventInfoPtr@.eventWindow into winPtr
+  if property = "name" then setWTitle winPtr,theValue -- change window name
+  else if property = "prompt" then prompt winPtr,theValue -- new prompt, draw it
+  else if property = "clear" then -- erase the window
+    getPort savePort
+    setPort eventInfoPtr@.eventWindow
+    eraseRect eventInfoPtr@.eventWindow@.portRect
+    setPort savePort
+  else return true
+  return false -- we already processed this one
+end SetPropEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  getPort savePort
+  setPort winPtr
+  BeginUpdate winPtr
+  Prompt winPtr,empty -- redraw last prompt (current text)
+  EndUpdate winPtr
+  setPort savePort
+end updateEvent
+
+on Prompt winPtr,newString -- only update changes to cut down flashing
+  setPort winPtr
+  put GetWRefCon(winPtr) into dataHand
+  if dataHand is not nil then
+    if dataHand@@.longIntType[1] is not nil then
+      put HyperCardText(dataHand@@.longIntType[1]) into prevString -- retrieve previous value
+      put the number of lines in prevString into y
+      if newString is empty then
+        put prevString into newString
+        put empty into prevString
+      end if
+      put GetNewTextHandle(newString) into dataHand@@.longIntType[1] -- get handle to new value
+      setWRefCon winPtr,dataHand -- store for next time
+    else exit prompt
+  else exit prompt
+  put winPtr@.portRect.LongIntType[1] into aRect.LongIntType[1] -- get topLeft of window
+  put winPtr@.portRect.LongIntType[2] into aRect.LongIntType[2] -- get bottomRight of window
+  put the number of lines in newString+1 into x
+  repeat with i=1 to x
+    if line i of prevString  = line i of newString then next repeat
+    put line i of newString into nS
+    put charsHandle(nS) into stringHand -- get handle to changed line of text
+    put (i-1)*13 into aRect.integerType[1] -- top of line
+    put i*13 into aRect.integerType[3] -- bottom of line
+    TextBox stringHand@.ptrType,getHandleSize(stringHand),aRect,teJustCenter -- draw it
+  end repeat
+  get y - x -- were there more lines last time?
+  if it > 0 then -- yes
+    put aRect.integerType[3] into aRect.integerType[1] -- bottom of last line of new text
+    add (it+1)*13 to aRect.integerType[3] -- bottom of last line of previous text
+    EraseRect aRect -- erase 'em
+  end if
+  setPort savePort
+end Prompt

@@ -1,0 +1,116 @@
+GLOBAL arect:r[8]
+
+on xWindow wnam,frame,type,flot
+  if wnam = "?" then
+    return "xWindow <windowName>,<rect>,<type>,<floating>"
+  else if wnam = "!" then
+    return "xWindow 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  StrToRect frame,arect
+  LocalToGlobal arect.longIntType[1]
+  LocalToGlobal arect.longIntType[2]
+  put NewXWindow(arect,wnam,FALSE,type,FALSE,(flot = TRUE)) into winPtr
+  if winPtr = nil then return "Error: Couldn't open window."
+  SetXWIdleTime winPtr,0
+  XWAllowReEntrancy winPtr, true, true
+  showWindow winPtr
+end xWindow
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  runHandler "openXWindow" && PtrToName(winPtr)
+end OpenEvent
+
+function CloseEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  runHandler "closeXWindow" && PtrToName(winPtr)
+  return TRUE
+end CloseEvent
+
+function SetPropEvent eventInfoPtr,propNamePtr,theValue
+  put propNamePtr@.str255type into propName
+  put eventInfoPtr@.eventWindow into winPtr
+  if propName = "rect" then
+    put NewPtr(8) into box
+    SetRect box@,item 1 of theValue,item 2 of theValue,item 3 of theValue,item 4 of theValue
+    LocalToGlobal box@.longIntType[1]
+    LocalToGlobal box@.longIntType[2]
+    MoveWindow winPtr, box@.IntegerType[2], box@.IntegerType[1], TRUE
+    SizeWindow winPtr, box@.IntegerType[4] - box@.IntegerType[2], box@.IntegerType[3] - box@.IntegerType[1], TRUE
+    DisposPtr box
+  else if propName = "width" then
+    SizeWindow winPtr, theValue, winPtr@.portRect.integerType[3] - winPtr@.portRect.integerType[1] , TRUE
+  else if propName = "height" then
+    SizeWindow winPtr, winPtr@.portRect.integerType[4] - winPtr@.portRect.integerType[2], theValue, TRUE
+  else
+    return true
+  end if
+  return false -- we already processed this one
+end SetPropEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if frontWindow() ≠ winPtr then
+    activateWindow winPtr -- make it active ...
+  end if
+  get FindWindow(eventInfoPtr@.event.where,winPtr)
+  if it is inContent then
+    PointToStr eventInfoPtr@.event.where,pos
+    runHandler "clickInXWindow" && PtrToName(winPtr) & "," & pos
+  else if it is inDrag then
+    setRect arect,-16000,-16000,16000,16000
+    DragWindow winPtr,eventInfoPtr@.event.where,arect
+  else if it is inGoAway then
+    if trackGoAway(winPtr,eventInfoPtr@.event.where) then
+      CloseXWindow winPtr
+    end if
+  else if it is inZoomIn or it is inZoomOut then
+    if trackBox(winPtr,eventInfoPtr@.event.where, it) then
+      runHandler "zoomXWindow" && PtrToName(winPtr)
+    end if
+  end if
+end mouseDownEvent
+
+on activateWindow winPtr
+  selectWindow winPtr
+  hiliteWindow winPtr,TRUE
+end activateWindow
+
+function CursorWithinEvent eventInfoPtr
+  if FindWindow(eventInfoPtr@.event.where,eventInfoPtr@.eventWindow) is inContent then
+    put GetCursor(128) into theCursor
+    SetCursor theCursor@@
+    return false
+  end if
+  return true -- let HyperCard handle it
+end CursorWithinEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  runHandler "updateXWindow" && PtrToName(winPtr)
+end updateEvent
+
+on app4Event eventInfoPtr
+  put eventInfoPtr@.event.message into theMsg
+  put eventInfoPtr@.eventWindow into winPtr
+  if bitAnd(theMsg,1) ≠ 0 then
+    showWindow winPtr
+  else
+    hideWindow winPtr
+  end if
+end app4Event
+
+on hidePalettesEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  hideWindow winPtr
+end hidePalettesEvent
+
+on showPalettesEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  showWindow winPtr
+end showPalettesEvent
+
+function PtrToName winPtr
+  GetWTitle winPtr,myStr
+  return myStr
+end PtrToName

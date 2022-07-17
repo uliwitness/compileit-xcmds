@@ -1,0 +1,28 @@
+global rect1:R[8],rect2:R[8]
+
+on CardToPict theRect
+  strToRect theRect,rect2
+  GetGWorld oldPort,oldDev
+  put NewGworld(myGWorld,8,oldPort@.portRect,NIL,NIL,0) into myErr
+  if myErr≠0 then
+    return "Error: NewGworld failed. ID=" & myErr
+  end if
+  SetGWorld myGWorld,NIL
+  put GetGWorldPixMap(myGWorld) into pixMapHandle
+  put LockPixels(pixMapHandle) into myErr
+  if myErr=1 then
+    eraseRect rect1
+    put rect2.longIntType[1] into rect1.longIntType[1]
+    put rect2.longIntType[2] into rect1.longIntType[2]
+    put openPicture(rect2) into myPic
+    copyBits oldPort@.portBits,myGWorld@.portBits,rect1,rect2,0,nil
+    closePicture
+    SetGWorld oldPort,OldDev
+    unlockPixels pixMapHandle
+    SetPort oldPort
+    DisposeGWorld myGWorld
+    AddResource myPic,"PICT",UniqueID("PICT"),""
+  else
+    return "Error: LockPixels failed."
+  end if
+end CardToPict

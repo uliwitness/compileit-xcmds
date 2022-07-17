@@ -1,0 +1,13 @@
+function switch str
+  if str = "?" then
+    return "put|get switch(<returnDelimitedList>)"
+  else if str = "!" then
+    return "Switch © Copyright 1996 by Uli Kusterer, all rights reserved."
+  end if
+  put number of lines of str into lc
+  repeat with x = 1 to lc
+    put ", " & line x of str after newStr
+  end repeat
+  delete char 1 to 2 of newStr
+  return newStr
+end switch

@@ -1,0 +1,16 @@
+on makeString resID,myTxt,rNam
+  if resID = "?" then
+    return "makeString <resID>,<text>[,<name]"
+  else if resID = "!" then
+    return "makeString 1.0, © 1996 by Uli Kusterer, all rights reserved."
+  end if
+  put get1Resource("STR ",resID) into theStr
+  if theStr ≠ NIL then
+    rmveResource theStr
+  end if
+  put numtochar(length(myTxt)) before myTxt
+  put charsHandle(myTxt) into resHand
+  put handToHand(resHand) into err
+  addResource resHand,"STR ",resID,rNam
+  return myString
+end makeString

@@ -1,0 +1,18 @@
+function itemOffset patStr,str
+  if paramCount() = 1 then
+    if patStr = "?" then
+      return "put|get itemOffset( <pattern>, <inStr> )"
+    else if patStr = "!" then
+      return "itemOffset 1.0, © 1998 by M. Uli Kusterer, all rights reserved."
+    end if
+  end if
+  put 0 into foundItem
+  put the number of items of str into IC
+  repeat with x = 1 to IC
+    if item x of str = patStr then
+      put x into foundItem
+      exit repeat
+    end if
+  end repeat
+  return foundItem
+end itemOffset

@@ -1,0 +1,105 @@
+GLOBAL arect:r[8]
+
+on xwd
+  setrect arect,10,10,300,100
+  LocalToGlobal arect.longIntType[1]
+  LocalToGlobal arect.longIntType[2]
+  put NewXWindow(arect,"Huh?",FALSE,2048,FALSE,FALSE) into winPtr
+  if winPtr = nil then return "Error: Couldn't open window."
+  showWindow winPtr
+end xwd
+
+on OpenEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  SetXWIdleTime winPtr,0
+  XWAllowReEntrancy winPtr, true, true
+end OpenEvent
+
+function CloseEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  return TRUE
+end CloseEvent
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if frontWindow() ≠ winPtr then
+    activateWindow winPtr -- make it active ...
+  end if
+  get FindWindow(eventInfoPtr@.event.where,winPtr)
+  if it is inContent then
+    PointToStr eventInfoPtr@.event.where,pos
+    runHandler "clickInXWindow" && PtrToName(winPtr) & "," & pos
+  else if it is inDrag then
+    setRect arect,-16000,-16000,16000,16000
+    DragWindow winPtr,eventInfoPtr@.event.where,arect
+  else if it is inGoAway then
+    if trackGoAway(winPtr,eventInfoPtr@.event.where) then
+      CloseXWindow winPtr
+    end if
+  else if it is inGrow then
+    changeWinSize winPtr
+  else if it is inZoomIn or it is inZoomOut then
+    if trackBox(winPtr,eventInfoPtr@.event.where, it) then
+      runHandler "zoomXWindow" && PtrToName(winPtr)
+    end if
+  end if
+end mouseDownEvent
+
+on activateWindow winPtr
+  selectWindow winPtr
+  hiliteWindow winPtr,TRUE
+end activateWindow
+
+function CursorWithinEvent eventInfoPtr
+  if FindWindow(eventInfoPtr@.event.where,eventInfoPtr@.eventWindow) is inContent then
+    put GetCursor(128) into theCursor
+    SetCursor theCursor@@
+    return false
+  end if
+  return true -- let HyperCard handle it
+end CursorWithinEvent
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  beginUpdate winPtr
+  eraseRect winPtr@.portRect
+  paintRect winPtr@.portRect
+  drawGrowIcon winPtr
+  endUpdate winPtr
+end updateEvent
+
+on app4Event eventInfoPtr
+  put eventInfoPtr@.event.message into theMsg
+  put eventInfoPtr@.eventWindow into winPtr
+  if bitAnd(theMsg,1) ≠ 0 then
+    drawGrowIcon winPtr
+  else
+    drawGrowIcon winPtr
+  end if
+end app4Event
+
+function PtrToName winPtr
+  GetWTitle winPtr,myStr
+  return myStr
+end PtrToName
+
+global minMaxSize:rect
+global newSize:longInt
+global newWidth:integer
+global newHeight:integer
+
+on changeWinSize winPtr
+  GetMouse mousePos
+  LocalToGlobal mousePos
+  put 64 into minMaxSize.top
+  put 64 into minMaxSize.left
+  put 16000 into minMaxSize.bottom
+  put 16000 into minMaxSize.right
+  put growWindow(winPtr,mousePos,minMaxSize) into newSize
+  if newSize ≠ nil then
+    put LoWord(newSize) into newWidth
+    put HiWord(newSize) into newHeight
+    SizeWindow winPtr, newWidth, newHeight, FALSE
+    invalRect winPtr@.portRect
+  end if
+end changeWinSize

@@ -1,0 +1,18 @@
+function RaConv mode,str
+  if mode = "Str" then
+    repeat with x = 1 to (number of items of str)
+      put numToChar(item x of str) after mydata
+    end repeat
+    return mydata
+  else if mode = "Res" then
+    repeat with x = 1 to (number of chars of str)
+      put "," & charToNum(char x of str) after mydata
+    end repeat
+    delete char 1 of mydata
+    return mydata
+  else if mode = "?" then
+    return "put|get RaConv(<Str|Res>,<data>)"
+  else if mode = "!" then
+    return "RaConv 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+end RaConv

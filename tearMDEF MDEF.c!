@@ -1,0 +1,269 @@
+CodeResource "MDEF" 700
+
+recordOffset pmBounds:R @ 6
+
+pascal on tearMDEF nachricht:I,myMenu:P,@mnuRect:R,hitPos:L,@whichItem:I
+  if nachricht = mDrawMsg then
+    drawMenu myMenu,mnuRect
+  else if nachricht = mChooseMsg then
+    chooseItem myMenu mnuRect,hitPos,whichItem
+  else if nachricht = mSizeMsg then
+    sizeMenu myMenu
+  else if nachricht = mPopUpMsg then
+    put mnuRect@.left +myMenu@@.menuWidth into mnuRect@.right
+    put mnuRect@.top +myMenu@@.menuHeight into mnuRect@.bottom
+  end if
+end tearMDEF
+
+on drawMenu myMenu, mnuRect
+  put newPtrClear(8) into box
+  put newPtr(8) into temp
+  put -1 into horzOffset
+  put -1 into vertOffset
+  add mnuRect@.left to horzOffset
+  add mnuRect@.top to vertOffset
+  put countMItems(myMenu) into itemCount
+  repeat with x = 1 to itemCount
+    GetItem myMenu, x, theStr
+    if char 1 of theStr = "-" then
+      penPat gray
+      moveTo mnuRect@.left,vertOffset +2
+      lineTo mnuRect@.right,vertOffset +2
+      penPat black
+      put mnuRect@.left -1 into horzOffset
+      add 4 to vertOffset
+    else
+      StringToNum theStr,resID
+      put GetCIcon(resID) into myColorIcon
+      if myColorIcon ≠ NIL then
+        put myColorIcon@@.iconPMap.pmBounds.longIntType[1] into box@.longIntType[1]
+        put myColorIcon@@.iconPMap.pmBounds.longIntType[2] into box@.longIntType[2]
+        offsetRect box@,-box@.left,-box@.top
+        offsetRect box@,horzOffset,vertOffset
+        put box@.longIntType[1] into temp@.longIntType[1]
+        put box@.longIntType[2] into temp@.longIntType[2]
+        plotCIcon box@,myColorIcon
+        disposCIcon myColorIcon
+        GetItemMark myMenu, x, theChar
+        insetRect temp@,1,1
+        if theChar = checkMark then
+          penMode patXor
+          paintRect temp@
+          penMode patCopy
+        end if
+        if bitAnd(myMenu@@.enableFlags.longIntType,1) = 0 then
+          penPat gray
+          penMode notPatBic
+          paintRect temp@
+          penMode patCopy
+          penPat black
+        else if x < 32 then
+          penPat gray
+          penMode notPatBic
+          if bitAnd(myMenu@@.enableFlags.longIntType,2^x) = 0 then
+            paintRect temp@
+          end if
+          penMode patCopy
+          penPat black
+        end if
+        GetItemCmd myMenu,x,theChar
+        if charToNum("•") = charToNum(theChar) then
+          put mnuRect@.left -1 into horzOffset
+          put box@.bottom -1 into vertOffset
+        else
+          put box@.right -1 into horzOffset
+        end if
+      end if
+    end if
+  end repeat
+  disposPtr box
+  disposPtr temp
+end drawMenu
+
+on chooseItem myMenu, mnuRect, hitPos, whichItem
+  put whichItem@.integerType into lastItem
+  put 0 into whichItem@.integerType
+  put newPtr(8) into box
+  put newPtr(8) into temp
+  put mnuRect@.longIntType[1] into box@.longIntType[1]
+  put mnuRect@.longIntType[2] into box@.longIntType[2]
+  insetRect box@,-10,-10
+  put -1 into horzOffset
+  put -1 into vertOffset
+  add mnuRect@.left to horzOffset
+  add mnuRect@.top to vertOffset
+  put countMItems(myMenu) into itemCount
+  if ptInRect(hitPos,box@) then
+    repeat with x = 1 to itemCount
+      GetItem myMenu, x, theStr
+      if char 1 of theStr = "-" then
+        put mnuRect@.left -1 into horzOffset
+        add 4 to vertOffset
+        setMenuDisable myMenu@@.menuID,x
+      else
+        StringToNum theStr,resID
+        put GetCIcon(resID) into myColorIcon
+        if myColorIcon ≠ NIL then
+          put myColorIcon@@.iconPMap.pmBounds.longIntType[1] into box@.longIntType[1]
+          put myColorIcon@@.iconPMap.pmBounds.longIntType[2] into box@.longIntType[2]
+          disposCIcon myColorIcon
+          offsetRect box@,-box@.left,-box@.top
+          offsetRect box@,horzOffset,vertOffset
+          put box@.longIntType[1] into temp@.longIntType[1]
+          put box@.longIntType[2] into temp@.longIntType[2]
+          insetRect temp@,1,1
+          if ptInRect(hitPos,temp@) then
+            if bitAnd(myMenu@@.enableFlags.longIntType,1) = 0 then
+              setMenuDisable myMenu@@.menuID,x
+              put 0 into whichItem@.integerType
+            else if x < 32 and¬
+            bitAnd(myMenu@@.enableFlags.longIntType,2^x) = 0 then
+              setMenuDisable myMenu@@.menuID,x
+              put 0 into whichItem@.integerType
+            else
+              if lastItem ≠ x then
+                penMode patXor
+                frameRect temp@
+                penMode patCopy
+              end if
+              put x into whichItem@.integerType
+            end if
+          else if lastItem = x then
+            penMode patXor
+            frameRect temp@
+            penMode patCopy
+          end if
+        end if
+        GetItemCmd myMenu,x,theChar
+        if charToNum("•") = charToNum(theChar) then
+          put mnuRect@.left -1 into horzOffset
+          put box@.bottom -1 into vertOffset
+        else
+          put box@.right -1 into horzOffset
+        end if
+      end if
+    end repeat
+  else
+    if hiWord(hitPos) > MBarHeight+10 then
+      put newPtr(8) into rechteck
+      put (mnuRect@.right -mnuRect@.left) div 2 into horzWidth
+      put (mnuRect@.bottom -mnuRect@.top) div 2 into vertWidth
+      put loWord(hitPos) -horzWidth into rechteck@.left
+      put hiWord(hitPos) -vertWidth into rechteck@.top
+      put loWord(hitPos) +horzWidth into rechteck@.right
+      put hiWord(hitPos) +vertWidth into rechteck@.bottom
+      if rechteck@.top < MBarHeight+10 then
+        offsetRect rechteck@,0,MBarHeight+10 -rechteck@.top
+      end if
+      getPort thePort
+      clipRect thePort@.portRect
+      penPat gray
+      penMode patXor
+      frameRect rechteck@
+      penPat black
+      penMode patCopy
+      setMenuDisable rechteck@.top,rechteck@.left
+      put 65535 into whichItem@.integerType
+    end if
+    repeat with x = 1 to itemCount
+      GetItem myMenu, x, theStr
+      if char 1 of theStr = "-" then
+        put mnuRect@.left -1 into horzOffset
+        add 4 to vertOffset
+      else
+        StringToNum theStr,resID
+        put GetCIcon(resID) into myColorIcon
+        if myColorIcon ≠ NIL then
+          put myColorIcon@@.iconPMap.pmBounds.longIntType[1] into box@.longIntType[1]
+          put myColorIcon@@.iconPMap.pmBounds.longIntType[2] into box@.longIntType[2]
+          disposCIcon myColorIcon
+          offsetRect box@,-box@.left,-box@.top
+          offsetRect box@,horzOffset,vertOffset
+          put box@.longIntType[1] into temp@.longIntType[1]
+          put box@.longIntType[2] into temp@.longIntType[2]
+          insetRect temp@,1,1
+          if lastItem = x and ptInRect(hitPos,temp@) = FALSE then
+            if bitAnd(myMenu@@.enableFlags.longIntType,1) ≠ 0 then
+              exit repeat
+            else if x < 32 and¬
+            bitAnd(myMenu@@.enableFlags.longIntType,2^x) = 0 then
+              exit repeat
+            else
+              penMode patXor
+              frameRect temp@
+              penMode patCopy
+              exit repeat
+            end if
+          end if
+          GetItemCmd myMenu,x,theChar
+          if charToNum("•") = charToNum(theChar) then
+            put mnuRect@.left -1 into horzOffset
+            put box@.bottom -1 into vertOffset
+          else
+            put box@.right -1 into horzOffset
+          end if
+        end if
+      end if
+    end repeat
+    if hiWord(hitPos) > MBarHeight+10 then
+      penPat gray
+      penMode patXor
+      frameRect rechteck@
+      penPat black
+      penMode patCopy
+      disposPtr rechteck
+    end if
+  end if
+  disposPtr box
+  disposPtr temp
+end chooseItem
+
+on setMenuDisable mnu,itm
+  put newPtr(4) into menuDis
+  put mnu into menuDis@.integerType[1]
+  put itm into menuDis@.integerType[2]
+  put menuDis@ into MenuDisable
+  disposPtr menuDis
+end setMenuDisable
+
+on sizeMenu myMenu
+  put newPtr(8) into box
+  put newPtr(8) into temp
+  put -1 into horzOffset
+  put -1 into vertOffset
+  put 0 into wdMax
+  put 0 into htMax
+  put countMItems(myMenu) into itemCount
+  repeat with x = 1 to itemCount
+    GetItem myMenu, x, theStr
+    if char 1 of theStr = "-" then
+      put -1 into horzOffset
+      add 4 to vertOffset
+    else
+      StringToNum theStr,resID
+      put GetCIcon(resID) into myColorIcon
+      if myColorIcon ≠ NIL then
+        put myColorIcon@@.iconPMap.pmBounds.longIntType[1] into box@.longIntType[1]
+        put myColorIcon@@.iconPMap.pmBounds.longIntType[2] into box@.longIntType[2]
+        offsetRect box@,-box@.left,-box@.top
+        offsetRect box@,horzOffset,vertOffset
+        put box@.longIntType[1] into temp@.longIntType[1]
+        put box@.longIntType[2] into temp@.longIntType[2]
+        disposCIcon myColorIcon
+        GetItemCmd myMenu,x,theChar
+        if charToNum("•") = charToNum(theChar) then
+          put max(wdMax,box@.right-1) into wdMax
+          put max(htMax,box@.bottom-1) into htMax
+          put -1 into horzOffset
+          put box@.bottom -1 into vertOffset
+        else
+          put box@.right -1 into horzOffset
+        end if
+      end if
+    end if
+  end repeat
+  disposPtr box
+  disposPtr temp
+  put wdMax into myMenu@@.menuWidth
+  put htMax into myMenu@@.menuHeight
+end sizeMenu

@@ -1,0 +1,296 @@
+GLOBAL myPicHandle:picHandle -- for picture drawing
+GLOBAL RGBvalue:Record[6]    -- for using RGB fore- and background- colors
+GLOBAL myPoly:handle         -- for drawing polygons
+GLOBAL Arect:R[8]
+
+on xDraw mode,opcodes
+  if mode = "?" then return help()
+  if mode = "!" then return copyright()
+  if mode = "Draw" then
+    Do_DrawStuff opcodes,TRUE
+  else if mode = "SavePic" then
+    return Do_SavePicStuff(param(3),param(4),param(5),opcodes)
+  else if item 1 of mode = "within" then
+    return Do_WithinStuff(opcodes,param(3),param(4))
+  else
+    return "Error: Invalid mode selector. Modes must be 'Draw', 'savePic' or 'within'."
+  end if
+end xDraw
+
+function Do_SavePicStuff pName,pNum,pReplace,opcodes
+  put Get1Resource("PICT",pNum) into theRes
+  if theRes ≠ nil then -- resource already exists
+    if pReplace = "Replace" then
+      RmveResource theRes
+      put ResError() into theErr
+      if theErr ≠ 0 then
+        return "Error: Couldn't remove resource (" & theErr & ")."
+      end if
+      UpdateResFile CurResFile()
+    else if pReplace = "Unique" then
+      put 0 into pNum
+      repeat until pNum > 127
+        put UniqueID("PICT") into pNum
+      end repeat
+    else
+      return "Error: Resource already exists."
+    end if
+  end if
+  put rect of this cd into cRec
+  SetRect myPicFrame@,0,0,(item 3 of cRec - item 1 of cRec),(item 4 of cRec - item 2 of cRec)
+  put OpenPicture(myPicFrame@) into myPicture
+  Do_DrawStuff opcodes,noPolyRgn
+  ClosePicture
+  if myPicture = nil then return "Error: Not enough memory"
+  AddResource myPicture,"PICT",pNum,pName
+end Do_SavePicStuff
+
+on Do_DrawStuff opcodes,mode
+  put newPtr(8) into myRect
+  PenNormal
+  repeat with x = 1 to (number of lines of opcodes)
+    if item 1 of line x of opcodes = "line" then
+      MoveTo (item 2 of line x of opcodes),(item 3 of line x of opcodes)
+      LineTo (item 4 of line x of opcodes),(item 5 of line x of opcodes)
+    else if item 1 of line x of opcodes = "rect" then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),¬
+      (item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      if item 6 of line x of opcodes = "Fill" then
+        PaintRect myRect@
+      else if item 6 of line x of opcodes = "Frame" then
+        FrameRect myRect@
+      else if item 6 of line x of opcodes = "Erase" then
+        EraseRect myRect@
+      else if item 6 of line x of opcodes = "Invert" then
+        InvertRect myRect@
+      end if
+    else if item 1 of line x of opcodes = "oval" then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),¬
+      (item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      if item 6 of line x of opcodes = "Fill" then
+        PaintOval myRect@
+      else if item 6 of line x of opcodes = "Frame" then
+        FrameOval myRect@
+      else if item 6 of line x of opcodes = "Erase" then
+        EraseOval myRect@
+      else if item 6 of line x of opcodes = "Invert" then
+        InvertOval myRect@
+      end if
+    else if item 1 of line x of opcodes = "Pen Size" then
+      PenSize (item 2 of line x of opcodes),(item 3 of line x of opcodes)
+    else if item 1 of line x of opcodes = "Fore Color" then
+      if item 2 of line x of opcodes = "white" then
+        ForeColor whiteColor
+      else if item 2 of line x of opcodes = "black" then
+        ForeColor blackColor
+      else if item 2 of line x of opcodes = "yellow" then
+        ForeColor yellowColor
+      else if item 2 of line x of opcodes = "magenta" then
+        ForeColor magentaColor
+      else if item 2 of line x of opcodes = "red" then
+        ForeColor redColor
+      else if item 2 of line x of opcodes = "cyan" then
+        ForeColor cyanColor
+      else if item 2 of line x of opcodes = "green" then
+        ForeColor greenColor
+      else if item 2 of line x of opcodes = "blue" then
+        ForeColor blueColor
+      else -- assume it's an RGB color
+        put item 2 of line x of opcodes into RGBvalue.integertype[1]
+        put item 3 of line x of opcodes into RGBvalue.integertype[2]
+        put item 4 of line x of opcodes into RGBvalue.integertype[3]
+        RGBForeColor RGBvalue
+      end if
+    else if item 1 of line x of opcodes = "Back Color" then
+      if item 2 of line x of opcodes = "white" then
+        BackColor whiteColor
+      else if item 2 of line x of opcodes = "black" then
+        BackColor blackColor
+      else if item 2 of line x of opcodes = "yellow" then
+        BackColor yellowColor
+      else if item 2 of line x of opcodes = "magenta" then
+        BackColor magentaColor
+      else if item 2 of line x of opcodes = "red" then
+        BackColor redColor
+      else if item 2 of line x of opcodes = "cyan" then
+        BackColor cyanColor
+      else if item 2 of line x of opcodes = "green" then
+        BackColor greenColor
+      else if item 2 of line x of opcodes = "blue" then
+        BackColor blueColor
+      else -- assume it's an RGB color
+        put item 2 of line x of opcodes into RGBvalue.integertype[1]
+        put item 3 of line x of opcodes into RGBvalue.integertype[2]
+        put item 4 of line x of opcodes into RGBvalue.integertype[3]
+        RGBBackColor RGBvalue
+      end if
+    else if item 1 of line x of opcodes = "roundrect" then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),¬
+      (item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      if item 7 of line x of opcodes ≠ 0 then
+        put item 7 of line x of opcodes into ow
+      else
+        put 15 into ow
+      end if
+      if item 8 of line x of opcodes ≠ 0 then
+        put item 8 of line x of opcodes into oh
+      else
+        put 15 into oh
+      end if
+      if item 6 of line x of opcodes = "Fill" then
+        PaintRoundRect myRect@,ow,oh
+      else if item 6 of line x of opcodes = "Frame" then
+        FrameRoundRect myRect@,ow,oh
+      else if item 6 of line x of opcodes = "Erase" then
+        EraseRoundRect myRect@,ow,oh
+      else if item 6 of line x of opcodes = "Invert" then
+        InvertRoundRect myRect@,ow,oh
+      end if
+    else if item 1 of line x of opcodes = "pen Mode" then
+      if item 2 of line x of opcodes = "Copy" then
+        PenMode patCopy
+      else if item 2 of line x of opcodes = "Or" then
+        PenMode patOr
+      else if item 2 of line x of opcodes = "XOr" then
+        PenMode patXOr
+      else if item 2 of line x of opcodes = "Bic" then
+        PenMode patBic
+      else if item 2 of line x of opcodes = "notCopy" then
+        PenMode notPatCopy
+      else if item 2 of line x of opcodes = "notOr" then
+        PenMode notPatOr
+      else if item 2 of line x of opcodes = "notXOr" then
+        PenMode notPatXOr
+      else if item 2 of line x of opcodes = "notBic" then
+        PenMode notPatBic
+      else if item 2 of line x of opcodes = "hilite" then
+        PenMode (patCopy + 50)
+      end if
+    else if item 1 of line x of opcodes = "String" then
+      MoveTo item 2 of line x of opcodes,item 3 of line x of opcodes
+      GetFNum item 4 of line x of opcodes,fNum
+      textFont fNum
+      put 0 into fFace
+      if item 5 of line x of opcodes ≠ "plain" then
+        if "bold" is in item 5 of line x of opcodes then
+          add 1 to fFace
+        end if
+        if "italic" is in item 5 of line x of opcodes then
+          add 2 to fFace
+        end if
+        if "underline" is in item 5 of line x of opcodes then
+          add 4 to fFace
+        end if
+        if "outline" is in item 5 of line x of opcodes then
+          add 8 to fFace
+        end if
+        if "shadow" is in item 5 of line x of opcodes then
+          add 16 to fFace
+        end if
+        if "condense" is in item 5 of line x of opcodes then
+          add 32 to fFace
+        end if
+        if "extend" is in item 5 of line x of opcodes then
+          add 64 to fFace
+        end if
+      end if
+      textFace fFace
+      textSize item 6 of line x of opcodes
+      DrawString item 7 of line x of opcodes
+    else if item 1 of line x of opcodes = "clipRect" then
+      SetRect myRect@,(item 2 of line x of opcodes),(item 3 of line x of opcodes),(item 4 of line x of opcodes),(item 5 of line x of opcodes)
+      ClipRect myRect@
+    else if item 1 of line x of opcodes = "pict" then
+      put getResource("PICT",item 2 of line x of opcodes) into myPicHandle
+      if myPicHandle ≠ nil and number of items of line x of opcodes = 6 then
+        put item 3 of line x of opcodes into pleft
+        put item 4 of line x of opcodes into ptop
+        put item 5 of line x of opcodes into pright
+        put item 6 of line x of opcodes into pbottom
+        SetRect myRect@,pleft,ptop,pright,pbottom
+        DrawPicture myPicHandle,myRect@
+      else if myPicHandle ≠ nil and number of items of line x of opcodes = 4 then
+        put item 3 of line x of opcodes into pleft
+        put item 4 of line x of opcodes into ptop
+        put myPicHandle@@.integerType[4] - myPicHandle@@.integerType[2] into hoch
+        put myPicHandle@@.integerType[5] - myPicHandle@@.integerType[3] into breite
+        SetRect myRect@,pleft,ptop,pleft + breite,ptop + hoch
+        DrawPicture myPicHandle,myRect@
+      end if
+      ReleaseResource myPicHandle
+    else if item 1 of line x of opcodes = "icon" then
+      put item 2 of line x of opcodes into theID
+      put item 3 to 6 of line x of opcodes into theRct
+      strToRect theRct,myRect@
+      showColorIcon theID+0,myRect
+    else if item 1 of line x of opcodes = "Fore Pattern" then
+      put GetResource("PAT ",item 2 of line x of opcodes) into myPatHandle
+      if myPatHandle ≠ nil then
+        PenPat myPatHandle@@
+        ReleaseResource myPatHandle
+      end if
+    else if item 1 of line x of opcodes = "back Pattern" then
+      put GetResource("PAT ",item 2 of line x of opcodes) into myPatHandle
+      if myPatHandle ≠ nil then
+        BackPat myPatHandle@@
+        ReleaseResource myPatHandle
+      end if
+    else if item 1 of line x of opcodes = "polygon" then
+      MoveTo word 1 of item 3 of line x of opcodes, word 2 of item 3 of line x of opcodes
+      if mode ≠ noPolyRgn then -- check if we're not already defining a region
+        put openPoly() into myPoly
+        if myPoly = NIL then return "Error: Couldn't open polygon."
+      end if
+      repeat with y = 4 to (number of items of line x of opcodes)
+        put (word 1 of item y of line x of opcodes)+0 into xPos
+        put (word 2 of item y of line x of opcodes)+0 into yPos
+        LineTo xPos,yPos
+      end repeat
+      LineTo word 1 of item 3 of line x of opcodes, word 2 of item 3 of line x of opcodes
+      if mode ≠ noPolyRgn then -- check if we're not already defining a region
+        closePoly
+        if item 2 of line x of opcodes = "Frame" then
+          FramePoly myPoly
+        else if item 2 of line x of opcodes = "Fill" then
+          PaintPoly myPoly
+        else if item 2 of line x of opcodes = "Erase" then
+          ErasePoly myPoly
+        else if item 2 of line x of opcodes = "Invert" then
+          InvertPoly myPoly
+        end if
+        killPoly myPoly
+      end if
+    end if
+  end repeat
+  PenPat black
+  ForeColor blackColor
+  BackColor whiteColor
+  PenNormal
+  disposptr myRect
+end Do_DrawStuff
+
+function help
+  return "Syntax: xDraw <Draw|within|savePic>[,<opcodes>]"
+end help
+
+function copyright
+  return "xDraw Lite © 1995-96 by Uli Kusterer, all rights reserved."
+end copyright
+
+on showIcon iconID,myRect
+  put GetResource("ICON",iconID) into theIcon
+  if theIcon ≠ nil then -- icon load successfull?
+    eraseRect myRect@
+    PlotIcon myRect@,theIcon
+  end if
+end showIcon
+
+on showColorIcon iconID,myRect
+  put GetCIcon(iconID) into theIcon
+  if theIcon ≠ nil then -- there is a cicn
+    PlotCIcon myRect@,theIcon
+    ReleaseResource theIcon
+  else -- there is no cicn, try B/W version
+    showIcon iconID,myRect
+  end if
+end showColorIcon

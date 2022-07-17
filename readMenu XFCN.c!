@@ -1,0 +1,65 @@
+GLOBAL myMenu:Handle, resData:Handle
+
+function readMenu mnuID
+  if noInteger(mnuID) then
+    put getNamedResource("MENU",mnuID) into myMenu
+  else
+    put getResource("MENU",mnuID+0) into myMenu
+  end if
+  if myMenu = NIL then return "Error: Couldn't get menu."
+  put countMItems(myMenu) into itCt
+  repeat with x = 1 to (itCt)
+    getItem myMenu, x, myStr
+    put myStr into line x of itz
+    getItemStyle myMenu, x, chStyle
+    if bitAnd(chStyle,1) ≠ 0 then put "<B" before line x of itz
+    if bitAnd(chStyle,2) ≠ 0 then put "<I" before line x of itz
+    if bitAnd(chStyle,4) ≠ 0 then put "<U" before line x of itz
+    if bitAnd(chStyle,8) ≠ 0 then put "<O" before line x of itz
+    if bitAnd(chStyle,16) ≠ 0 then put "<S" before line x of itz
+    getItemMark myMenu, x, myChar
+    if chartonum(myChar) ≠ 0 then
+      put "!" & myChar before line x of itz
+    end if
+    getItemIcon myMenu, x, myNum
+    if myNum ≠ 0 then
+      put "^" & numtochar(myNum) before line x of itz
+    end if
+    getItemCmd myMenu, x, myChar
+    if chartonum(myChar) ≠ 0 then
+      put "/" & myChar before line x of itz
+    end if
+  end repeat
+  return itz
+end readMenu
+
+function syntax
+  return "readMenu <resID|resName>"
+end syntax
+
+function copyright
+  return "readMenu 1.0, © 1995 by Martin Kusterer, all rights rsvd."
+end copyright
+
+function StyleSetList StyleInt
+  -- given integer StyleInt, return comma-delimited list of names
+  put empty into stylelist
+  if BitAnd(StyleInt,1)≠0 then put ",bold" into stylelist
+  if BitAnd(StyleInt,2)≠0 then put ",italic" after stylelist
+  if BitAnd(StyleInt,4)≠0 then put ",underline" after stylelist
+  if BitAnd(StyleInt,8)≠0 then put ",outline" after stylelist
+  if BitAnd(StyleInt,16)≠0 then put ",shadow" after stylelist
+  if BitAnd(StyleInt,32)≠0 then put ",condense" after stylelist
+  if BitAnd(StyleInt,64)≠0 then put ",extend" after stylelist
+  if stylelist is empty then return "plain"
+  delete first char of stylelist
+  return stylelist
+end StyleSetList
+
+function noInteger nb
+  if nb = empty then return TRUE
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then return TRUE
+  end repeat
+  return FALSE
+end noInteger

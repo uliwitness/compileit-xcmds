@@ -1,0 +1,67 @@
+on writeRes kind,num,nme,data
+  if kind = "?" then
+    return "writeRes <type>,<ID>,<name>,<data>[,<filePath>]"
+  else if kind = "!" then
+    return "writeRes 2.1, © 1995-2000 by M. Uli Kusterer, all rights reserved."
+  end if
+  put 0 into fileNum
+  if paramCount() >= 5 then
+    put OpenResFile(param(5)) into fileNum
+    if fileNum < 0 then
+      return "Error: Couldn't open resource file (" & fileNum & ")."
+    end if
+  end if
+  put get1Resource(kind,num) into testResHand
+  if testResHand ≠ NIL then
+    RmveResource testResHand
+    put "Removed existing resource." into theResult
+  end if
+  put 1 into x
+  put length(data) into theLen
+  put newHandle( 0 ) into mydata
+  if mydata = NIL then return "Error: Couldn't create resource data (" & memeError() & ")."
+  repeat
+    if x > theLen then exit repeat
+    if char x of data = "\" then
+      put char x+1 of data into theCh
+      if theCh = "0" then
+        appendToHandle 0,mydata
+      else if theCh = "t" then
+        appendToHandle chartonum(tab),mydata
+      else if theCh = "r" then
+        appendToHandle chartonum(return),mydata
+      else if theCh = "\" then
+        appendToHandle chartonum("\"),mydata
+      else
+        disposHandle mydata
+        if fileNum > 0 then
+          CloseResFile fileNum
+        end if
+        return "Error: Invalid escaped character in resource data (\" & char x+1 of data & ")."
+      end if
+      add 1 to x -- also skip char after slash
+    else
+      appendToHandle chartonum(char x of data),mydata
+    end if
+    add 1 to x
+  end repeat
+  AddResource mydata,kind,num,nme
+  put resError() into theErr
+  if theErr is not 0 then
+    disposHandle mydata
+    if fileNum > 0 then
+      CloseResFile fileNum
+    end if
+    return "Error: Couldn't create resource (" & theErr & ")."
+  end if
+  if fileNum > 0 then
+    CloseResFile fileNum
+  end if
+  return theResult
+end writeRes
+
+on appendToHandle aChar,hnd
+  put getHandleSize(hnd) into oldSize
+  setHandleSize hnd, oldSize +1
+  put numtochar(aChar) into hnd@@.charType[oldSize]
+end appendToHandle

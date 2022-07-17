@@ -1,0 +1,27 @@
+global minMaxSize:rect
+global newSize:longInt
+global newWidth:integer
+global newHeight:integer
+global winPtr:Ptr
+
+function sizeBox minH,minV
+  if the version < 2.1 then return "Error: Requires HyperCard 2.1 or higher."
+  put id of card window into winPtr
+  put minV into minMaxSize.top
+  put minH into minMaxSize.left
+  put rect of this cd into myFrame
+  put item 4 of myFrame +1 into minMaxSize.bottom
+  put item 3 of myFrame +1 into minMaxSize.right
+  put winPtr@.portRect.right into newWidth
+  put winPtr@.portRect.bottom into newHeight
+  GetMouse mousePos
+  LocalToGlobal mousePos
+  put GrowWindow (winPtr, mousePos, minMaxSize) into newSize
+  if newSize ≠ nil then
+    put LoWord(newSize) into newWidth
+    put HiWord(newSize) into newHeight
+    set rect of card window to "0,0," & newWidth & "," & newHeight
+    SizeWindow winPtr, newWidth, newHeight, TRUE
+  end if
+  return ("0,0,"  & newWidth & "," & newHeight)
+end sizeBox

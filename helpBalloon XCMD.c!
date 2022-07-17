@@ -1,0 +1,39 @@
+on helpBalloon str,pos,rct
+  if paramCount() = 1 and param(1) = "?" then
+    return "helpBalloon <string>[,<loc>[,<hotRect>]]"
+  else if paramCount() = 1 and param(1) = "!" then
+    return "© 1996 by Uli Kusterer, all rights reserved."
+  end if
+  put 0 into theNum
+  put Gestalt("help",theNum) into theErr
+  if theErr ≠ 0 then return "Error: Unknown Gestalt #" & theErr
+  if bitAnd(theNum,1) = 0 then return "Error: Help Mgr. not available."
+  if rct = empty then put value("the rect of the target") into rct
+  if rct = empty then return "Error: Invalid hot rectangle."
+  put newPtr(8) into box
+  put length(str) into sLen
+  put newPtr(sLen+3) into hmRec
+  StrToRect rct,box@
+  if pos = empty then
+    SetPt myPos,box@.right -10,box@.bottom -10
+  else
+    StrToPoint pos,myPos
+  end if
+  localToGlobal box@.topLeft
+  localToGlobal box@.botRight
+  localToGlobal myPos
+  put khmmString into hmRec@.integerType
+  put hmRec +2 into thePtr
+  put numToChar(sLen) into thePtr@.charType
+  repeat with x = 1 to sLen
+    add 1 to thePtr
+    put char x of str into thePtr@.charType
+  end repeat
+  put -853 into theErr
+  repeat until theErr ≠ -853 -- passing by
+    put HMShowBalloon(hmRec@,myPos,box,NIL,0,0,kHMRegularWindow) into theErr
+  end repeat
+  if theErr ≠ 0 and theErr ≠ -850 then return "Error: Unknown #" & theErr
+  disposPtr box
+  disposPtr hmRec
+end helpBalloon

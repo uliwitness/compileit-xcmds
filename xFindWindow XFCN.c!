@@ -1,0 +1,29 @@
+GLOBAL  myWindow:P
+
+CONSTANT inDesk = 0
+CONSTANT inMenuBar = 1
+CONSTANT inSysWindow = 2
+CONSTANT inContent = 3
+CONSTANT inDrag = 4
+CONSTANT inGrow = 5
+CONSTANT inGoAway = 6
+CONSTANT inZoomIn = 7
+CONSTANT inZoomOut = 8
+
+function xFindWindow pos
+  if pos = "?" then
+    return "put xFindWindow(<mouse loc>) into windowID : id of window or 0"
+  else if pos = "!" then
+    return "(c) 2001 by M. Uli Kusterer, PostcardWare."
+  end if
+  setPt myPoint, item 1 of pos, item 2 of pos
+  localToGlobal myPoint
+  put 0 into myWindow
+  put FindWindow(myPoint,myWindow) into hitPart
+  if hitPart = inContent or hitPart = inDrag or hitPart = inGrow ¬
+  or hitPart = inGoAway or hitPart = inZoomIn or hitPart = inZoomOut then
+    return myWindow
+  else
+    return 0
+  end if
+end xFindWindow

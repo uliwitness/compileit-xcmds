@@ -1,0 +1,22 @@
+function contentsHeight fieldID,cardfldFlag
+  if fieldID = "?" then
+    return "put|get contentsHeight(<fieldID>,<cardFieldBool>)"
+  else if fieldID = "!" then
+    return "contentsHeight 1.0, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  if isInteger(fieldID) = FALSE then return "Error: field ID must be integer."
+  if cardfldFlag is not "true" then put false into cdFlag else put true into cdFlag
+  put GetFieldTE(cdFlag,fieldID,0,empty) into TEHandle
+  if TEHandle is nil then return "Error: Couldn't get field."
+  put TEGetHeight(TEHandle@@.nLines, 1, TEHandle) into pixHeight
+  disposHandle TEHandle
+  return pixHeight
+end contentsHeight
+
+function isInteger nb
+  if nb = empty then return FALSE
+  repeat with x = 1 to length(nb)
+    if char x of nb is not in "0123456789" then return FALSE
+  end repeat
+  return TRUE
+end isInteger

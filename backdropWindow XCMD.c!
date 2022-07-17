@@ -1,0 +1,73 @@
+GLOBAL scrnRec:record[8]
+
+on backdropWindow mode
+  if mode = "?" then
+    return "backdropWindow [<ppatID>]"
+  else if mode = "!" then
+    return "backdropWindow 1.2, © 1995 by Uli Kusterer, all rights reserved."
+  end if
+  put screenRect() into scRect
+  setRect scrnRec,item 1 of scRect,item 2 of scRect,item 3 of scRect,item 4 of scRect
+  put NewXWindow(scrnRec,theName,FALSE,2,FALSE,FALSE) into winPtr
+  if winPtr = nil then
+    return "Error: Couldn't create window."
+  end if
+  setPort winPtr
+  if mode ≠ empty then
+    put GetPixPat(mode+0) into myPat
+    if myPat = NIL then
+      closeXWindow winPtr
+      return "Error: Couldn't get 'ppat' resource."
+    else
+      backPixPat myPat
+      disposPixPat myPat
+    end if
+  else
+    BackColor blackColor
+  end if
+  SetXWIdleTime winPtr,1
+  XWAllowReEntrancy winPtr, TRUE, TRUE
+  setPort winPtr
+  sendBehind winPtr,cardWindPtr()
+  showWindow winPtr
+end backdropWindow
+
+on mouseDownEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if frontDocWindow() = winPtr then
+    sendBehind winPtr,cardWindPtr()
+  end if
+end mouseDownEvent
+
+on idleEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  if frontDocWindow() = winPtr then
+    sendBehind winPtr,cardWindPtr()
+  end if
+end idleEvent
+
+on app4Event eventInfoPtr
+  put eventInfoPtr@.event.message into theMsg
+  put eventInfoPtr@.eventWindow into winPtr
+  if bitAnd(theMsg,1) ≠ 0 then
+    showWindow winPtr
+  else
+    hideWindow winPtr
+  end if
+end app4Event
+
+on updateEvent eventInfoPtr
+  put eventInfoPtr@.eventWindow into winPtr
+  BeginUpdate winPtr
+  eraseRect winPtr@.portRect
+  EndUpdate winPtr
+end updateEvent
+
+function cardWindPtr
+  put frontDocWindow() into winPtr
+  repeat until winPtr@.windowKind = 30
+    put winPtr@.nextWindow into winPtr
+    if winPtr = NIL then exit repeat
+  end repeat
+  return winPtr
+end cardWindPtr

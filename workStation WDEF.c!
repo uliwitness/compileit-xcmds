@@ -1,0 +1,565 @@
+CodeResource "WDEF" 128
+
+-- 52428 = Rand
+-- 61166 = Titelleiste
+-- 43690 = Schließfeld
+-- 48059 = GrowBox (obere)
+-- 30583 = Highlight
+
+Constant kSmallBar = 10
+Constant kTallBar = 18
+Constant kGrowBoxSize = 16
+
+recordOffset pmBounds:R @ 6
+
+pascal function paletteWDEF :L varCode:I, theWindow:P, nachricht:I, daten:L
+  if theWindow@.visible = TRUE then
+    if nachricht ≠ wNew and nachricht ≠ wCalcRgns and nachricht ≠ wHit¬
+    and nachricht ≠ wDispose then
+      put checkColor(theWindow) into hasColor
+    end if
+    if bitAnd(varCode,2) ≠ 0 then
+      put kTallBar into titleBarHeight
+    else
+      put kSmallBar into titleBarHeight
+    end if
+    if nachricht = wDraw then
+      if loWord(daten) = 0 then
+        draw_Frame varCode,theWindow,daten,hasColor,titleBarHeight
+      else if loWord(daten) = wInGoAway then
+        draw_Close varCode,theWindow,daten,hasColor,titleBarHeight
+      else if loWord(daten) = wInZoomIn then
+        draw_Zoom varCode,theWindow,daten,hasColor,titleBarHeight
+      else if loWord(daten) = wInZoomOut then
+        draw_Zoom varCode,theWindow,daten,hasColor,titleBarHeight
+      end if
+      return 0
+    else if nachricht = wHit then
+      return report_Hits(varCode,theWindow,daten,titleBarHeight)
+    else if nachricht = wCalcRgns then
+      calc_Rgns varCode,theWindow,daten,titleBarHeight
+      return 0
+    else if nachricht = wNew then
+      if bitAnd(varCode,8) ≠ 0 then
+        put TRUE into theWindow@.spareFlag
+      end if
+      put newHandleClear(16) into theWindow@.dataHandle
+      put theWindow@.portRect.longIntType[1] into¬
+      theWindow@.dataHandle@@.longIntType[1]
+      put theWindow@.portRect.longIntType[2] into¬
+      theWindow@.dataHandle@@.longIntType[2]
+      put theWindow@.portRect.longIntType[1] into¬
+      theWindow@.dataHandle@@.longIntType[3]
+      put theWindow@.portRect.longIntType[2] into¬
+      theWindow@.dataHandle@@.longIntType[4]
+    else if nachricht = wDispose then
+      disposHandle theWindow@.dataHandle
+    else if nachricht = wGrow then
+      grow_Rect varCode,theWindow,daten,titleBarHeight
+      return 0
+    else if nachricht = wDrawGIcon then
+      grow_Box varCode,theWindow,daten,hasColor
+      return 0
+    end if
+  else
+    return 0
+  end if
+end paletteWDEF
+
+on draw_Frame varCode,winPtr,daten,hasColor,titleBarHeight
+  setColorPort hasColor
+  put windowRect(winPtr) into aRect
+  put newPtr(8) into titleBarRect
+  insetRect aRect@,-1,-1
+  frameRect aRect@
+  moveTo aRect@.left +1,aRect@.bottom
+  lineTo aRect@.right,aRect@.bottom
+  lineTo aRect@.right,aRect@.top +1 -TitleBarHeight
+  put aRect@.left into titleBarRect@.left
+  put aRect@.top into titleBarRect@.bottom
+  put aRect@.right into titleBarRect@.right
+  put titleBarRect@.bottom -TitleBarHeight into titleBarRect@.top
+  add 1 to titleBarRect@.bottom
+  if hasColor = TRUE then
+    setColor 61166,61166,61166
+    paintRect titleBarRect@
+    setColor 0,0,0
+  else
+    eraseRect titleBarRect@
+  end if
+  frameRect titleBarRect@
+  if hasColor = TRUE then
+    put newPtr(8) into shadeRect
+    put titleBarRect@.longIntType[1] into shadeRect@.longIntType[1]
+    put titleBarRect@.longIntType[2] into shadeRect@.longIntType[2]
+    insetRect shadeRect@,1,1
+    setColor 52428,52428,52428
+    frameRect shadeRect@
+    disposPtr shadeRect
+    setColor 30583,30583,30583
+  end if
+  penPat gray
+  if titleBarHeight > 12 then
+    if hasColor = TRUE then
+      put 2 into theOffs
+      put (titleBarHeight -6) div 2 into lineCount
+    else
+      put 0 into theOffs
+      put (titleBarHeight -2) div 2 into lineCount
+    end if
+  else
+    if hasColor = TRUE then
+      put 1 into theOffs
+      put (titleBarHeight -4) div 2 into lineCount
+    else
+      put 0 into theOffs
+      put (titleBarHeight -2) div 2 into lineCount
+    end if
+  end if
+  repeat lineCount
+    add 2 to theOffs
+    moveTo titleBarRect@.left +2,titleBarRect@.top +theOffs
+    lineTo titleBarRect@.right -3,titleBarRect@.top +theOffs
+  end repeat
+  penPat black
+  if titleBarHeight > 12 then
+    getWTitle winPtr,theStr
+    if length(theStr) > 0 then
+      put newPtr(8) into titleRect
+      put stringWidth(theStr) +10 into theTLwidth
+      put theTLWidth into winPtr@.titleWidth
+      put (titleBarRect@.right -titleBarRect@.left) div 2 into startHorz
+      subtract (theTLWidth div 2) from startHorz
+      put titleBarRect@.left +startHorz into titleRect@.left
+      put titleRect@.left +theTLWidth into titleRect@.right
+      put titleBarRect@.top +2 into titleRect@.top
+      put titleBarRect@.bottom -2 into titleRect@.bottom
+      if hasColor = TRUE then
+        setColor 61166,61166,61166
+        paintRect titleRect@
+        setColor 0,0,0
+      else
+        eraseRect titleRect@
+      end if
+      moveTo titleRect@.left +5,titleRect@.bottom -3
+      drawString theStr
+      disposPtr titleRect
+    end if
+  end if
+  if winPtr@.goAwayFlag = TRUE then
+    put newPtr(8) into closeBoxRect
+    if titleBarHeight > 12 then
+      put 4 into udDiff
+    else
+      put 2 into udDiff
+    end if
+    put titleBarRect@.left +7 into closeBoxRect@.left
+    put titleBarRect@.top +udDiff into closeBoxRect@.top
+    put titleBarRect@.bottom -udDiff into closeBoxRect@.bottom
+    put closeBoxRect@.left + (closeBoxRect@.bottom -closeBoxRect@.top) into¬
+    closeBoxRect@.right
+    put newPtr(8) into cbRect
+    put closeBoxRect@.longIntType[1] into cbRect@.longIntType[1]
+    put closeBoxRect@.longIntType[2] into cbRect@.longIntType[2]
+    if titleBarHeight > 12 then
+      put -1 into udAbst
+    else
+      put 0 into udAbst
+    end if
+    insetRect cbRect@,-1,udAbst
+    if hasColor then
+      setColor 61166,61166,61166
+      paintRect cbRect@
+      setColor 0,0,0
+    else
+      eraseRect cbRect@
+    end if
+    if hasColor then
+      frameRect closeBoxRect@
+      put closeBoxRect@.longIntType[1] into cbRect@.longIntType[1]
+      put closeBoxRect@.longIntType[2] into cbRect@.longIntType[2]
+      add 1 to cbRect@.left
+      add 1 to cbRect@.top
+      setColor 52428,52428,52428
+      paintRect cbRect@
+      setColor 0,0,0
+      insetRect cbRect@,1,1
+      frameRect cbRect@
+      setColor 43690,43690,43690
+      subtract 1 from cbRect@.right
+      subtract 1 from cbRect@.bottom
+      paintRect cbRect@
+      setColor 0,0,0
+    else
+      frameRect closeBoxRect@
+    end if
+    disposPtr cbRect
+    disposPtr closeBoxRect 
+  end if
+  if winPtr@.spareFlag = TRUE or bitAnd(varCode,8) ≠ 0 then
+    put newPtr(8) into zoomBoxRect
+    if titleBarHeight > 12 then
+      put 4 into udDiff
+    else
+      put 2 into udDiff
+    end if
+    put titleBarRect@.right -7 into zoomBoxRect@.right
+    put titleBarRect@.top +udDiff into zoomBoxRect@.top
+    put titleBarRect@.bottom -udDiff into zoomBoxRect@.bottom
+    put zoomBoxRect@.right - (zoomBoxRect@.bottom -zoomBoxRect@.top) into¬
+    zoomBoxRect@.left
+    put newPtr(8) into zbRect
+    put zoomBoxRect@.longIntType[1] into zbRect@.longIntType[1]
+    put zoomBoxRect@.longIntType[2] into zbRect@.longIntType[2]
+    if titleBarHeight > 12 then
+      put -1 into udAbst
+    else
+      put 0 into udAbst
+    end if
+    insetRect zbRect@,-1,udAbst
+    if hasColor then
+      setColor 61166,61166,61166
+      paintRect zbRect@
+      setColor 0,0,0
+    else
+      eraseRect zbRect@
+    end if
+    if hasColor then
+      frameRect zoomBoxRect@
+      put zoomBoxRect@.longIntType[1] into zbRect@.longIntType[1]
+      put zoomBoxRect@.longIntType[2] into zbRect@.longIntType[2]
+      add 1 to zbRect@.left
+      add 1 to zbRect@.top
+      setColor 52428,52428,52428
+      paintRect zbRect@
+      setColor 0,0,0
+      insetRect zbRect@,1,1
+      frameRect zbRect@
+      setColor 43690,43690,43690
+      subtract 1 from zbRect@.right
+      subtract 1 from zbRect@.bottom
+      paintRect zbRect@
+      setColor 0,0,0
+    else
+      frameRect zoomBoxRect@
+    end if
+    disposPtr zbRect
+    put (zoomBoxRect@.right - zoomBoxRect@.left) div 2 into Abstand
+    if hasColor then
+      setColor 0,0,0
+      moveTo zoomBoxRect@.left +2,zoomBoxRect@.top +Abstand
+    else
+      moveTo zoomBoxRect@.left,zoomBoxRect@.top +Abstand
+    end if
+    lineTo zoomBoxRect@.left +Abstand,zoomBoxRect@.top +Abstand
+    if hasColor then
+      lineTo zoomBoxRect@.left +Abstand,zoomBoxRect@.top +2
+    else
+      lineTo zoomBoxRect@.left +Abstand,zoomBoxRect@.top
+    end if
+    disposPtr zoomBoxRect 
+  end if
+  disposPtr titleBarRect
+  disposPtr aRect
+end draw_Frame
+
+on calc_Rgns varCode,winPtr,daten,titleBarHeight
+  put windowRect(winPtr) into aRect
+  rectRgn winPtr@.contRgn,aRect@
+  insetRect aRect@,-1,-1
+  subtract titleBarHeight from aRect@.top
+  rectRgn winPtr@.strucRgn,aRect@
+  put newRgn() into shadowRgn
+  offsetRect aRect@,1,1
+  rectRgn shadowRgn,aRect@
+  unionRgn shadowRgn,winPtr@.strucRgn,winPtr@.strucRgn
+  disposeRgn shadowRgn
+  disposPtr aRect
+end calc_Rgns
+
+function report_Hits varCode,winPtr,daten,titleBarHeight
+  put windowRect(winPtr) into aRect
+  put newPtr(8) into titleBarRect
+  put newPtr(8) into growIconRect
+  insetRect aRect@,-1,-1
+  put aRect@.left into titleBarRect@.left
+  put aRect@.top into titleBarRect@.bottom
+  put aRect@.right into titleBarRect@.right
+  put titleBarRect@.bottom -titleBarHeight into titleBarRect@.top
+  add 1 to titleBarRect@.bottom
+  put aRect@.right -kGrowBoxSize into growIconRect@.left
+  put aRect@.bottom -kGrowBoxSize into growIconRect@.top
+  put aRect@.right into growIconRect@.right
+  put aRect@.bottom into growIconRect@.bottom
+  put newPtr(8) into closeBoxRect
+  if titleBarHeight > 12 then
+    put 4 into udDiff
+  else
+    put 2 into udDiff
+  end if
+  put titleBarRect@.left+7 into closeBoxRect@.left
+  put titleBarRect@.top +udDiff into closeBoxRect@.top
+  put titleBarRect@.bottom -udDiff into closeBoxRect@.bottom
+  put closeBoxRect@.left + (closeBoxRect@.bottom -closeBoxRect@.top) into¬
+  closeBoxRect@.right
+  put newPtr(8) into zoomBoxRect
+  if titleBarHeight > 12 then
+    put 4 into udDiff
+  else
+    put 2 into udDiff
+  end if
+  put titleBarRect@.right-7 into zoomBoxRect@.right
+  put titleBarRect@.top +udDiff into zoomBoxRect@.top
+  put titleBarRect@.bottom -udDiff into zoomBoxRect@.bottom
+  put zoomBoxRect@.right -(zoomBoxRect@.bottom -zoomBoxRect@.top) into¬
+  zoomBoxRect@.left
+  if PtInRect(daten,titleBarRect@) then
+    if winPtr@.goAwayFlag = TRUE and PtInRect(daten,closeBoxRect@) then
+      return wInGoAway
+    else if winPtr@.spareFlag = TRUE ¬
+    and PtInRect(daten,zoomBoxRect@) then
+      put newPtr(8) into usRect
+      put winPtr@.dataHandle@@.longIntType[1] into usRect@.longIntType[1]
+      put winPtr@.dataHandle@@.longIntType[2] into usRect@.longIntType[2]
+      moveRectTo usRect,winPtr@.portRect.left,winPtr@.portRect.top
+      put (winPtr@.portRect.longIntType = usRect@.longIntType and ¬
+      winPtr@.portRect.longIntType[2] = usRect@.longIntType[2]) into isSame
+      if isSame then
+        return wInZoomIn
+      else
+        return wInZoomOut
+      end if
+    else
+      return wInDrag
+    end if
+  else if ptInRect(daten,growIconRect@) and bitAnd(varCode,4) = 0 then
+    return wInGrow
+  else if ptInRect(daten,aRect@) then
+    return wInContent
+  else
+    return wNoHit
+  end if
+  disposPtr zoomBoxRect
+  disposPtr closeBoxRect
+  disposPtr growIconRect
+  disposPtr titleBarRect
+  disposPtr aRect
+end report_Hits
+
+on grow_Box varCode,winPtr,daten,hasColor
+  setColorPort hasColor
+  put newRgn() into svClip
+  getClip svClip
+  put windowRect(winPtr) into aRect
+  insetRect aRect@,-1,-1
+  put newPtr(8) into growIconRect
+  put aRect@.right -kGrowBoxSize into growIconRect@.left
+  put aRect@.bottom -kGrowBoxSize into growIconRect@.top
+  put aRect@.right into growIconRect@.right
+  put aRect@.bottom into growIconRect@.bottom
+  put newRgn() into myClip
+  copyRgn winPtr@.visRgn,myClip
+  insetRgn myClip,-1,-1
+  offsetRgn myClip,aRect@.left,aRect@.top
+  setClip myClip
+  disposeRgn myClip
+  if hasColor then
+    setColor 61166,61166,61166
+    paintRect growIconRect@
+    setColor 0,0,0
+  else
+    eraseRect growIconRect@
+  end if
+  frameRect growIconRect@
+  moveTo aRect@.left,growIconRect@.top
+  lineTo aRect@.right -1,growIconRect@.top
+  moveTo growIconRect@.left,aRect@.top
+  lineTo growIconRect@.left,aRect@.bottom -1
+  put newPtr(8) into giRect
+  put growIconRect@.left +4 into giRect@.left
+  put growIconRect@.top +4 into giRect@.top
+  put growIconRect@.right -3 into giRect@.right
+  put growIconRect@.bottom -3 into giRect@.bottom
+  if hasColor then
+    frameRect giRect@
+    put newPtr(8) into clRect
+    put giRect@.longIntType[1] into clRect@.longIntType[1]
+    put giRect@.longIntType[2] into clRect@.longIntType[2]
+    add 1 to clRect@.left
+    add 1 to clRect@.top
+    setColor 52428,52428,52428
+    paintRect clRect@
+    add 1 to clRect@.left
+    add 1 to clRect@.top
+    setColor 0,0,0
+    frameRect clRect@
+    subtract 1 from clRect@.right
+    subtract 1 from clRect@.bottom
+    setColor 43690,43690,43690
+    paintRect clRect@
+    setColor 0,0,0
+  else
+    eraseRect giRect@
+    frameRect giRect@
+  end if
+  offsetRect giRect@,-3,-3
+  add 2 to giRect@.left
+  add 2 to giRect@.top
+  subtract 1 from giRect@.right
+  subtract 1 from giRect@.bottom
+  if hasColor then
+    frameRect giRect@
+    put giRect@.longIntType[1] into clRect@.longIntType[1]
+    put giRect@.longIntType[2] into clRect@.longIntType[2]
+    add 1 to clRect@.left
+    add 1 to clRect@.top
+    setColor 52428,52428,52428
+    paintRect clRect@
+    add 1 to clRect@.left
+    add 1 to clRect@.top
+    setColor 0,0,0
+    frameRect clRect@
+    subtract 1 from clRect@.right
+    subtract 1 from clRect@.bottom
+    setColor 48059,48059,48059
+    paintRect clRect@
+    disposPtr clRect
+    setColor 0,0,0
+  else
+    eraseRect giRect@
+    frameRect giRect@
+  end if
+  disposPtr giRect
+  disposPtr growIconRect
+  disposPtr aRect
+  setClip svClip
+  disposeRgn svClip
+end grow_Box
+
+on grow_Rect varCode,winPtr,daten,titleBarHeight
+  GetWMgrPort bPort
+  setPort bPort
+  put newPtr(8) into growRect
+  put newPtr(8) into growIconRect
+  put daten@.longIntType[1] into growRect@.longIntType[1]
+  put daten@.longIntType[2] into growRect@.longIntType[2]
+  insetRect growRect@,-1,-1
+  subtract titleBarHeight from growRect@.top
+  frameRect growRect@
+  moveTo growRect@.left +1,growRect@.top +titleBarHeight
+  lineTo growRect@.right -1,growRect@.top +titleBarHeight
+  moveTo growRect@.left +1,growRect@.bottom -kGrowBoxSize
+  lineTo growRect@.right -2,growRect@.bottom -kGrowBoxSize
+  moveTo growRect@.right -kGrowBoxSize,growRect@.bottom -2
+  lineTo growRect@.right -kGrowBoxSize,growRect@.top +titleBarHeight +1
+  disposPtr growRect
+  disposPtr growIconRect
+end grow_Rect
+
+on draw_Close varCode,winPtr,daten,hasColor,titleBarHeight
+  setColorPort hasColor
+  put windowRect(winPtr) into aRect
+  put newPtr(8) into titleBarRect
+  insetRect aRect@,-1,-1
+  put aRect@.left into titleBarRect@.left
+  put aRect@.top into titleBarRect@.bottom
+  put aRect@.right into titleBarRect@.right
+  put titleBarRect@.bottom -titleBarHeight into titleBarRect@.top
+  add 1 to titleBarRect@.bottom
+  put newPtr(8) into closeBoxRect
+  put titleBarRect@.left+7 into closeBoxRect@.left
+  if titleBarHeight > 12 then
+    put 4 into udDiff
+  else
+    put 2 into udDiff
+  end if
+  put titleBarRect@.top +udDiff into closeBoxRect@.top
+  put titleBarRect@.bottom -udDiff into closeBoxRect@.bottom
+  put closeBoxRect@.left + (closeBoxRect@.bottom -closeBoxRect@.top) into¬
+  closeBoxRect@.right
+  if hasColor then
+    insetRect closeBoxRect@,1,1
+  end if
+  invertRect closeBoxRect@
+  disposPtr closeBoxRect
+  disposPtr titleBarRect
+  disposPtr aRect
+end draw_Close
+
+on draw_Zoom varCode,winPtr,daten,hasColor,titleBarHeight
+  setColorPort hasColor
+  put windowRect(winPtr) into aRect
+  put newPtr(8) into titleBarRect
+  insetRect aRect@,-1,-1
+  put aRect@.left into titleBarRect@.left
+  put aRect@.top into titleBarRect@.bottom
+  put aRect@.right into titleBarRect@.right
+  put titleBarRect@.bottom -titleBarHeight into titleBarRect@.top
+  add 1 to titleBarRect@.bottom
+  put newPtr(8) into zoomBoxRect
+  put titleBarRect@.right-7 into zoomBoxRect@.right
+  if titleBarHeight > 12 then
+    put 4 into udDiff
+  else
+    put 2 into udDiff
+  end if
+  put titleBarRect@.top +udDiff into zoomBoxRect@.top
+  put titleBarRect@.bottom -udDiff into zoomBoxRect@.bottom
+  put zoomBoxRect@.right - (zoomBoxRect@.bottom -zoomBoxRect@.top) into¬
+  zoomBoxRect@.left
+  if hasColor then
+    insetRect zoomBoxRect@,1,1
+  end if
+  invertRect zoomBoxRect@
+  disposPtr zoomBoxRect
+  disposPtr titleBarRect
+  disposPtr aRect
+end draw_Zoom
+
+function windowRect winPtr
+  getPort aPort
+  setPort winPtr
+  put newPtr(8) into aRect
+  put winPtr@.portRect.longIntType[1] into aRect@.longIntType[1]
+  localToGlobal aRect@.longIntType[1]
+  put winPtr@.portRect.longIntType[2] into aRect@.longIntType[2]
+  localToGlobal aRect@.longIntType[2]
+  setPort aPort
+  return aRect
+end windowRect
+
+on setColor rot,gruen,blau
+  put newPtr(6) into theColor
+  put rot into theColor@.integerType[1]
+  put gruen into theColor@.integerType[2]
+  put blau into theColor@.integerType[3]
+  RGBForeColor theColor@
+  disposPtr theColor
+end setColor
+
+on setColorPort hasColor
+  if hasColor = TRUE then
+    GetCWMgrPort aPort
+    setPort aPort
+  else
+    GetWMgrPort bPort
+    setPort bPort
+  end if
+end setColorPort
+
+function checkColor winPtr
+  put gestalt("qdrw",theVal) into theErr
+  put (bitAnd(theVal,1) ≠ 0) into hasColor
+  put GetMaxDevice(winPtr@.strucRgn@@.rgnBBox) into aDevice
+  put (hasColor and (aDevice@@.gdPMap@@.pixelSize ≥ 4)) into hasColor
+  return hasColor
+end checkColor
+
+on moveRectTo theRect,hP,vP
+  put theRect@.right - theRect@.left into rW
+  put theRect@.bottom - theRect@.top into rH
+  put hP into theRect@.left
+  put hP +rW into theRect@.right
+  put vP into theRect@.top
+  put vP +rH into theRect@.bottom
+end moveRectTo
